@@ -99,40 +99,78 @@ body.pf-body {
   height: 100vh;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.65;
+  opacity: 0.85;
   transition: opacity 0.3s ease;
 }
 
-.pf-cube-face {
-  fill: rgba(22, 22, 22, 0.35);
-  stroke: rgba(223, 26, 37, 0.45);
-  stroke-width: 1.25;
-  transition: fill 0.3s ease, stroke 0.3s ease;
+/* 4D Tesseract Styling */
+.pf-tesseract-face {
+  fill: rgba(223, 26, 37, 0.04);
+  stroke: rgba(223, 26, 37, 0.20);
+  stroke-width: 0.8;
+  transition: fill 0.25s ease, stroke 0.25s ease;
 }
 
-.pf-cube-face.central {
-  fill: rgba(223, 26, 37, 0.06);
-  stroke: rgba(223, 26, 37, 0.85);
-  stroke-width: 1.5;
+.pf-tesseract-edge {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.4;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
-.pf-cube-edge {
-  stroke: rgba(255, 255, 255, 0.15);
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
+.pf-tesseract-edge.connecting {
+  stroke: var(--pf-red);
+  stroke-width: 1.6;
+  opacity: 0.85;
 }
 
-.pf-cube-node {
+.pf-tesseract-edge.inner {
+  stroke: rgba(223, 26, 37, 0.4);
+  stroke-width: 1.0;
+  stroke-dasharray: 3 3;
+}
+
+.pf-tesseract-node {
   fill: #FFFFFF;
-  stroke: #DF1A25;
+  stroke: var(--pf-red);
   stroke-width: 1.5;
+  filter: drop-shadow(0 0 4px rgba(223, 26, 37, 0.6));
 }
 
-.pf-cube-label {
-  fill: rgba(223, 26, 37, 0.6);
+.pf-tesseract-node.highlight {
+  fill: var(--pf-red);
+  stroke: #FFFFFF;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px rgba(223, 26, 37, 0.9));
+}
+
+/* Tesseract SVG HUD Panel */
+.pf-hud-panel {
+  fill: rgba(14, 14, 14, 0.85);
+  stroke: var(--pf-border);
+  stroke-width: 1;
+}
+
+.pf-hud-tag {
+  fill: var(--pf-red);
   font-family: var(--pf-font-mono);
-  font-size: 10px;
-  letter-spacing: 1px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+.pf-hud-title {
+  fill: var(--pf-text-white);
+  font-family: var(--pf-font-sans);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+
+.pf-hud-desc {
+  fill: var(--pf-text-muted);
+  font-family: var(--pf-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2px;
 }
 
 /* Top Progress Scroll Indicator */
