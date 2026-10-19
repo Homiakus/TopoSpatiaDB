@@ -117,23 +117,157 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
   }
 
-  // 6. Native Passive Scroll Progress Indicator
+  // 6. Native Passive Scroll Progress Indicator & 3-Cube Topological Unfolding
   const scrollIndicator = document.getElementById('pfScrollIndicator');
-  if (scrollIndicator) {
-    let scrollTicking = false;
-    window.addEventListener('scroll', () => {
-      if (!scrollTicking) {
-        scrollTicking = true;
-        requestAnimationFrame(() => {
-          const scrollTop = window.scrollY || document.documentElement.scrollTop;
-          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-          const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-          scrollIndicator.style.width = `${progress}%`;
-          scrollTicking = false;
-        });
+  const cubeSvg = document.getElementById('pfCubeNetSvg');
+
+  // Cube unfolding geometry definition:
+  // A 3-cube consists of 6 square 2-faces:
+  // - Base (center)
+  // - Top (folds up/down)
+  // - North, South, East, West (hinged on the 4 borders of base)
+  function renderCubeNet(t) {
+    if (!cubeSvg) return;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    cubeSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+    // Place the net subtly on the right or center-right of the background
+    const isMobile = width < 768;
+    const cx = isMobile ? width * 0.5 : width * 0.76;
+    const cy = isMobile ? height * 0.5 : height * 0.52;
+    const s = Math.min(width, height) * (isMobile ? 0.14 : 0.16); // Square face size
+
+    // t goes from 0 (folded 3D isometric projection) to 1 (fully flat 2D topological net)
+    // and gently oscillates/rotates across scroll sections
+    const foldAngle = (1 - t) * (Math.PI / 2); // 90 deg when folded, 0 deg when flat net
+    const globalAngle = t * Math.PI * 0.75; // subtle rotation with scroll
+
+    // Helper: 2D project a point with global rotation
+    function project(x, y, z = 0) {
+      // Rotate in 2D plane around (cx, cy)
+      const cosA = Math.cos(globalAngle * 0.4);
+      const sinA = Math.sin(globalAngle * 0.4);
+
+      // Depth perspective projection for folded state
+      const depth = 600;
+      const scale = depth / (depth + z);
+      const px = x * scale;
+      const py = y * scale;
+
+      const rx = px * cosA - py * sinA;
+      const ry = px * sinA + py * cosA;
+
+      return [cx + rx, cy + ry];
+    }
+
+    // Helper: Build SVG polygon path
+    function poly(pts, isCenter = false, label = '') {
+      const pStr = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+      let out = `<polygon points="${pStr}" class="pf-cube-face ${isCenter ? 'central' : ''}"/>`;
+
+      if (label) {
+        // Compute face centroid for formula label
+        const mx = (pts[0][0] + pts[1][0] + pts[2][0] + pts[3][0]) / 4;
+        const my = (pts[0][1] + pts[1][1] + pts[2][1] + pts[3][1]) / 4;
+        out += `<text x="${mx.toFixed(1)}" y="${(my + 4).toFixed(1)}" text-anchor="middle" class="pf-cube-label">${label}</text>`;
       }
-    }, { passive: true });
+      return out;
+    }
+
+    let svgHtml = '';
+
+    // 1. Central Face (Base) [σ0]
+    const b0 = project(-s/2, -s/2);
+    const b1 = project(s/2, -s/2);
+    const b2 = project(s/2, s/2);
+    const b3 = project(-s/2, s/2);
+    svgHtml += poly([b0, b1, b2, b3], true, 'X^{(2)}_0');
+
+    // 2. East Face [σ1] (folds along x = s/2 border)
+    // When folded, folds toward viewer / z-axis
+    const eFold = foldAngle;
+    const e_p0 = project(s/2, -s/2);
+    const e_p1 = project(s/2 + s * Math.cos(eFold), -s/2, s * Math.sin(eFold));
+    const e_p2 = project(s/2 + s * Math.cos(eFold), s/2, s * Math.sin(eFold));
+    const e_p3 = project(s/2, s/2);
+    svgHtml += poly([e_p0, e_p1, e_p2, e_p3], false, 'σ_E');
+
+    // 3. West Face [σ2] (folds along x = -s/2 border)
+    const w_p0 = project(-s/2, -s/2);
+    const w_p1 = project(-s/2 - s * Math.cos(eFold), -s/2, s * Math.sin(eFold));
+    const w_p2 = project(-s/2 - s * Math.cos(eFold), s/2, s * Math.sin(eFold));
+    const w_p3 = project(-s/2, s/2);
+    svgHtml += poly([w_p0, w_p1, w_p2, w_p3], false, 'σ_W');
+
+    // 4. North Face [σ3] (folds along y = -s/2 border)
+    const n_p0 = project(-s/2, -s/2);
+    const n_p1 = project(s/2, -s/2);
+    const n_p2 = project(s/2, -s/2 - s * Math.cos(eFold), s * Math.sin(eFold));
+    const n_p3 = project(-s/2, -s/2 - s * Math.cos(eFold), s * Math.sin(eFold));
+    svgHtml += poly([n_p0, n_p1, n_p2, n_p3], false, 'σ_N');
+
+    // 5. South Face [σ4] (folds along y = s/2 border)
+    const s_p0 = project(-s/2, s/2);
+    const s_p1 = project(s/2, s/2);
+    const s_p2 = project(s/2, s/2 + s * Math.cos(eFold), s * Math.sin(eFold));
+    const s_p3 = project(-s/2, s/2 + s * Math.cos(eFold), s * Math.sin(eFold));
+    svgHtml += poly([s_p0, s_p1, s_p2, s_p3], false, 'σ_S');
+
+    // 6. Top/Apex Face [σ5] (hinged to North Face: double fold)
+    // Extends from (n_p3, n_p2) border
+    const topAngle = eFold * 2;
+    const top_y = -s/2 - s * Math.cos(eFold) - s * Math.cos(topAngle);
+    const top_z = s * Math.sin(eFold) + s * Math.sin(topAngle);
+    const t_p0 = project(-s/2, -s/2 - s * Math.cos(eFold), s * Math.sin(eFold));
+    const t_p1 = project(s/2, -s/2 - s * Math.cos(eFold), s * Math.sin(eFold));
+    const t_p2 = project(s/2, top_y, top_z);
+    const t_p3 = project(-s/2, top_y, top_z);
+    svgHtml += poly([t_p0, t_p1, t_p2, t_p3], false, 'σ_T');
+
+    // Draw Topological Simplicial Boundary Nodes (Vertices)
+    const keyVertices = [b0, b1, b2, b3, e_p1, e_p2, w_p1, w_p2, n_p2, n_p3, s_p2, s_p3, t_p2, t_p3];
+    keyVertices.forEach(v => {
+      svgHtml += `<circle cx="${v[0].toFixed(1)}" cy="${v[1].toFixed(1)}" r="2.5" class="pf-cube-node"/>`;
+    });
+
+    cubeSvg.innerHTML = svgHtml;
   }
+
+  // Initial draw
+  renderCubeNet(0);
+
+  // Resize handler
+  window.addEventListener('resize', () => {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = docHeight > 0 ? (scrollTop / docHeight) : 0;
+    renderCubeNet(progress);
+  }, { passive: true });
+
+  // Passive Smooth Scroll Tick
+  let scrollTicking = false;
+  window.addEventListener('scroll', () => {
+    if (!scrollTicking) {
+      scrollTicking = true;
+      requestAnimationFrame(() => {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = docHeight > 0 ? (scrollTop / docHeight) : 0;
+
+        // 1. Update top laser indicator
+        if (scrollIndicator) {
+          scrollIndicator.style.width = `${progress * 100}%`;
+        }
+
+        // 2. Update Topological 3-Cube Unfolding Net
+        renderCubeNet(progress);
+
+        scrollTicking = false;
+      });
+    }
+  }, { passive: true });
 
   // 7. Interactive Button Click Pulse Effect
   const buttons = document.querySelectorAll('.pf-btn');
