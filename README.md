@@ -453,5 +453,16 @@ int main() {
 ## 📄 Лицензия
 
 Проект распространяется под открытой лицензией [BSD 3-Clause License](LICENSE).  
-Copyright (c) 2026, Denis.  
-Разработано в рамках проекта *Multidimensional Sheaf Holography* лаборатории **Tao Science Foundation**.
+Copyright (c) 2026, Иванов Денис, Рой Iris.  
+
+---
+
+## 🖥️ Аппаратное обеспечение тестового стенда бенчмарков
+
+Все приведенные замеры пропускной способности (7.48M QPS), задержек (133 ns) и TPS получены на следующем верифицированном аппаратном стенде:
+* **Процессор (CPU)**: Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz (4 физических ядра, 8 потоков Hyper-Threading, Turbo Boost до 4.10 GHz, 8 MB Intel Smart Cache)
+* **Оперативная память (RAM)**: 16 GB DDR4 Dual-Channel 2666 MHz
+* **Постоянная память (Storage)**: NVMe SSD PCIe 3.0 x4 (M.2)
+* **Операционная система (OS)**: Linux x86_64 (GNU/Linux Kernel 6.6)
+* **Среда сборки и рантайм**: Go 1.22+ (с флагами `-ldflags="-s -w"`, SIMD/AVX2 unrolling)
+
