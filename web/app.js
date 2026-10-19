@@ -61,9 +61,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const href = this.getAttribute('href');
         if (href && href !== '#' && document.querySelector(href)) {
           e.preventDefault();
-          lenis.scrollTo(href, { offset: -70, duration: 0.9 });
+          if (typeof lenis !== 'undefined' && lenis) {
+            lenis.scrollTo(href, { offset: -70, duration: 0.9 });
+          } else {
+            document.querySelector(href).scrollIntoView({ behavior: 'smooth' });
+          }
+          // Close mobile menu if open
+          const nav = document.querySelector('.pf-nav');
+          const toggle = document.getElementById('pfMobileToggle');
+          if (nav && nav.classList.contains('mobile-open')) {
+            nav.classList.remove('mobile-open');
+            if (toggle) toggle.classList.remove('active');
+          }
         }
       });
+    });
+  }
+
+  // Mobile Hamburger Toggle Handler
+  const mobileToggle = document.getElementById('pfMobileToggle');
+  const navMenu = document.querySelector('.pf-nav');
+  if (mobileToggle && navMenu) {
+    mobileToggle.addEventListener('click', () => {
+      mobileToggle.classList.toggle('active');
+      navMenu.classList.toggle('mobile-open');
     });
   }
 
