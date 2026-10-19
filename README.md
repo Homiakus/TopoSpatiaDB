@@ -2,7 +2,7 @@
 ### Высокопроизводительная СУБД на аппарате многомерной пучковой голографии, высших операторов Чеха–Де Рама и спектральной теории Лапласианов Ходжа
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat&logo=go)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Arch-SIMD%20%2F%20AVX2%20%2F%20sync.Pool-success)](storage.go)
 [![CEIH Certified](https://img.shields.io/badge/CEIH-Graph%20Audited-green)](topospatiadb.ceihg)
 [![OLTP Throughput](https://img.shields.io/badge/Mixed%20OLTP-325K%20TPS-orange)](PERFORMANCE_BENCHMARK_REPORT.md)
@@ -237,7 +237,87 @@ curl -X POST http://localhost:8089/api/v1/rag/diffuse \
 
 ---
 
+## 💻 Встраивание в свои Go-программы (Embedded Mode)
+
+TopoSpatiaDB спроектирована не только как автономный сервер, но и как сверхбыстрая **встраиваемая библиотека (In-Process Embedded DBMS)** без внешних зависимостей (CGO-free, 100% Go):
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"topospatia"
+)
+
+func main() {
+	// 1. Открытие встраиваемой БД (потокобезопасна, шардированный WAL)
+	db, err := topospatia.OpenDefault("./my_app_data")
+	if err != nil {
+		log.Fatalf("Failed to open DB: %v", err)
+	}
+	defer db.Close()
+
+	// 2. Создание топологической симплициальной сетки: ребро между узлами 0 и 1
+	v0, _ := db.AddCell([]int{0})
+	v1, _ := db.AddCell([]int{1})
+	_, _ = db.AddCell([]int{0, 1})
+	db.CompileOperators()
+
+	// 3. Запись документов в стебли клеток со стейт-векторами и криптопечатью SHA-256
+	_ = db.Put(&topospatia.Record{
+		ID:        "doc-v0",
+		CellID:    v0.ID,
+		Dimension: 0,
+		Vector:    topospatia.StalkVector{10.0, 5.0},
+		Payload:   map[string]interface{}{"service": "auth-gateway", "cluster": "eu-central"},
+	})
+
+	_ = db.Put(&topospatia.Record{
+		ID:        "doc-v1",
+		CellID:    v1.ID,
+		Dimension: 0,
+		Vector:    topospatia.StalkVector{8.0, 7.0},
+		Payload:   map[string]interface{}{"service": "auth-replica", "cluster": "us-east"},
+	})
+
+	// 4. Мгновенное чтение (7.49M QPS, задержка 133 нс)
+	rec, _ := db.Get("doc-v0")
+	fmt.Printf("Document: ID=%s, Vector=%v, SHA256=%s\n", rec.ID, rec.Vector, rec.Signature)
+
+	// 5. Топологический консенсус репликации (устранение H^1 конфликтов за субмикросекунды)
+	report, err := db.Diffuse()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Consensus converged: %v, Iterations: %d, Final Dirichlet Energy: %e\n",
+		report.Converged, report.Iterations, report.FinalEnergy)
+
+	// 6. Вычисление топологических инвариантов (числа Бетти H^k)
+	betti := db.ComputeHigherBettiNumbers(1e-5)
+	fmt.Printf("Betti Numbers (H^k): %+v\n", betti)
+}
+```
+
+### Тонкая настройка конфигурации (`topospatia.Options`):
+```go
+opts := topospatia.Options{
+    DataDir:            "/var/lib/my_service/topospatia",
+    MaxDim:             3,     // До 3-симплексов (тетраэдров)
+    StalkDim:           4,     // 4D векторное гильбертово пространство на клетку
+    Fsync:              false, // Event-Driven non-delayed group commit
+    ConsensusTolerance: 1e-6,  // Порог остановки градиентного потока Дирихле
+    ConsensusMaxIter:   200,   // Макс. число шагов диффузии
+    ConsensusDt:        0.05,  // Временной шаг интегрирования
+}
+db, err := topospatia.Open(opts)
+```
+
+---
+
 ## 📄 Лицензия
 
-Проект распространяется под открытой лицензией [MIT License](LICENSE).  
-Разработано лабораторией **Tao Science Foundation** в рамках проекта *Multidimensional Sheaf Holography*.
+Проект распространяется под открытой лицензией [BSD 3-Clause License](LICENSE).  
+Copyright (c) 2026, Denis.  
+Разработано в рамках проекта *Multidimensional Sheaf Holography* лаборатории **Tao Science Foundation**.

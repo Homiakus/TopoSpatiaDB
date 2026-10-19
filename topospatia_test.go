@@ -201,3 +201,75 @@ func TestHigherBettiSphereAndSimplexTree(t *testing.T) {
 		t.Fatalf("Expected Betti_2 = 1 for S^2 cavity, got %d", bettiMap[2])
 	}
 }
+
+func TestEmbeddedDB(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "topospatia_embed_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := OpenDefault(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to open embedded DB: %v", err)
+	}
+	defer db.Close()
+
+	// 1. Add topology
+	v0, err := db.AddCell([]int{0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	v1, _ := db.AddCell([]int{1})
+	_, _ = db.AddCell([]int{0, 1})
+	db.CompileOperators()
+
+	// 2. Put records
+	err = db.Put(&Record{
+		ID:        "node-0",
+		CellID:    v0.ID,
+		Dimension: 0,
+		Vector:    StalkVector{10.0, 5.0},
+		Payload:   map[string]interface{}{"role": "leader"},
+	})
+	if err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	err = db.Put(&Record{
+		ID:        "node-1",
+		CellID:    v1.ID,
+		Dimension: 0,
+		Vector:    StalkVector{2.0, 8.0},
+		Payload:   map[string]interface{}{"role": "follower"},
+	})
+	if err != nil {
+		t.Fatalf("Put failed: %v", err)
+	}
+
+	// 3. Get & Query
+	rec, err := db.Get("node-0")
+	if err != nil || rec.ID != "node-0" {
+		t.Fatalf("Get failed: %v, got %+v", err, rec)
+	}
+
+	recs, err := db.QueryByCell(v0.ID)
+	if err != nil || len(recs) != 1 {
+		t.Fatalf("QueryByCell failed: %v, count=%d", err, len(recs))
+	}
+
+	// 4. Run consensus
+	report, err := db.Diffuse()
+	if err != nil {
+		t.Fatalf("Diffuse failed: %v", err)
+	}
+	if !report.Converged {
+		t.Fatalf("Expected convergence, got %+v", report)
+	}
+
+	// 5. Test Higher Betti numbers (stalkDim=2, connected segment -> dim ker(Delta_0) = 1 * 2 = 2)
+	betti := db.ComputeHigherBettiNumbers(1e-5)
+	if betti[0] != 2 {
+		t.Fatalf("Expected Betti 0 = 2 for connected segment with stalkDim=2, got %d", betti[0])
+	}
+}
