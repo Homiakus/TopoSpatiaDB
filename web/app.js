@@ -376,63 +376,87 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHypercube(progress);
   }, { passive: true });
 
-  // Interactive Mouse/Touch Rotation
+  // Interactive Mouse & Mobile Touch Rotation
   let isDragging = false;
-  let lastMouseX = 0;
-  let lastMouseY = 0;
+  let lastTouchX = 0;
+  let lastTouchY = 0;
+  let autoPhase = 0;
 
-  window.addEventListener('mousedown', (e) => {
-    // Only drag when clicking background or right area
-    if (e.clientX > window.innerWidth * 0.4) {
-      isDragging = true;
-      lastMouseX = e.clientX;
-      lastMouseY = e.clientY;
-    }
-  });
+  function handleDragStart(x, y) {
+    isDragging = true;
+    lastTouchX = x;
+    lastTouchY = y;
+  }
 
-  window.addEventListener('mousemove', (e) => {
+  function handleDragMove(x, y) {
     if (isDragging) {
-      const dx = e.clientX - lastMouseX;
-      const dy = e.clientY - lastMouseY;
-      lastMouseX = e.clientX;
-      lastMouseY = e.clientY;
+      const dx = x - lastTouchX;
+      const dy = y - lastTouchY;
+      lastTouchX = x;
+      lastTouchY = y;
 
       currentRotXW += dx * 0.008;
       currentRotZW += dy * 0.008;
-
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = docHeight > 0 ? (scrollTop / docHeight) : 0;
-      renderHypercube(progress);
     }
-  });
+  }
 
-  window.addEventListener('mouseup', () => {
+  function handleDragEnd() {
     isDragging = false;
+  }
+
+  // Mouse Listeners
+  window.addEventListener('mousedown', (e) => {
+    handleDragStart(e.clientX, e.clientY);
   });
 
-  // Passive Smooth Scroll Tick
-  let scrollTicking = false;
-  window.addEventListener('scroll', () => {
-    if (!scrollTicking) {
-      scrollTicking = true;
-      requestAnimationFrame(() => {
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-        const progress = docHeight > 0 ? (scrollTop / docHeight) : 0;
+  window.addEventListener('mousemove', (e) => {
+    handleDragMove(e.clientX, e.clientY);
+  });
 
-        // 1. Update top laser indicator
-        if (scrollIndicator) {
-          scrollIndicator.style.width = `${progress * 100}%`;
-        }
+  window.addEventListener('mouseup', handleDragEnd);
 
-        // 2. Update Hypercube 4D multi-projection
-        renderHypercube(progress);
-
-        scrollTicking = false;
-      });
+  // Mobile Touch Listeners (Full touch gesture support)
+  window.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length > 0) {
+      handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
     }
   }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches && e.touches.length > 0) {
+      handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', handleDragEnd, { passive: true });
+  window.addEventListener('touchcancel', handleDragEnd, { passive: true });
+
+  // Continuous Animation Loop (Runs on both Desktop & Mobile)
+  let currentScrollProgress = 0;
+  function updateScrollProgress() {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    currentScrollProgress = docHeight > 0 ? (scrollTop / docHeight) : 0;
+    if (scrollIndicator) {
+      scrollIndicator.style.width = `${currentScrollProgress * 100}%`;
+    }
+  }
+
+  window.addEventListener('scroll', updateScrollProgress, { passive: true });
+
+  function animationLoop() {
+    // Gentle natural auto-rotation so hypercube always floats and rotates even when idle on mobile
+    if (!isDragging) {
+      autoPhase += 0.005;
+      currentRotXY += 0.003;
+      currentRotYZ += 0.002;
+    }
+    renderHypercube(currentScrollProgress);
+    requestAnimationFrame(animationLoop);
+  }
+
+  // Start continuous rendering loop
+  requestAnimationFrame(animationLoop);
 
   // 7. Interactive Button Click Pulse Effect
   const buttons = document.querySelectorAll('.pf-btn');
