@@ -1,4 +1,4 @@
-// TopoSpatiaDB — Cinematic Experience: Lenis Smooth Scroll, GSAP ScrollTrigger & KaTeX Auto-Renderer
+// TopoSpatiaDB — High Performance Responsive Engine: Ultra-Crisp Lenis & Hardware-Accelerated GSAP
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Render all LaTeX formulas automatically using KaTeX
@@ -15,140 +15,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Lenis Ultra-Smooth Inertial Scroll
+  // 2. High-Performance, Instant-Response Lenis Setup
   let lenis;
   if (typeof Lenis !== 'undefined') {
     lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // Exponential deceleration curve
+      duration: 0.8, // Shorter duration = instant crisp feel without floaty lag
+      easing: (t) => 1 - Math.pow(1 - t, 3), // Fast-out cubic curve (direct responsive feedback)
       smoothWheel: true,
-      wheelMultiplier: 1.0,
-      touchMultiplier: 1.5
+      syncTouch: false, // Keep native 1:1 responsive touch on mobile/trackpad
+      wheelMultiplier: 1.05
     });
 
-    // Synchronize Lenis with GSAP ScrollTrigger
-    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-      gsap.registerPlugin(ScrollTrigger);
-
-      lenis.on('scroll', ScrollTrigger.update);
-
-      gsap.ticker.add((time) => {
-        lenis.raf(time * 1000);
-      });
-      gsap.ticker.lagSmoothing(0);
-    } else {
-      function raf(time) {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      }
+    // Directly bind Lenis to requestAnimationFrame for 120Hz/144Hz high-refresh displays
+    function raf(time) {
+      lenis.raf(time);
       requestAnimationFrame(raf);
     }
+    requestAnimationFrame(raf);
 
-    // Connect in-page anchor links with Lenis smooth scroll
+    // Sync GSAP ScrollTrigger without ticker lag
+    if (typeof ScrollTrigger !== 'undefined') {
+      lenis.on('scroll', ScrollTrigger.update);
+    }
+
+    // Connect in-page anchor links with immediate scroll
     document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
       anchor.addEventListener('click', function (e) {
         const href = this.getAttribute('href');
         if (href && href !== '#' && document.querySelector(href)) {
           e.preventDefault();
-          lenis.scrollTo(href, { offset: -60, duration: 1.4 });
+          lenis.scrollTo(href, { offset: -70, duration: 0.9 });
         }
       });
     });
   }
 
-  // 3. GSAP ScrollTrigger Entrance Animations
+  // 3. Lightweight Hardware-Accelerated GSAP Scroll Trigger Animations (GPU Translated)
   if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-    // Hero Entrance Sequence
-    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-    heroTl
-      .from('.pf-badge-row', { opacity: 0, y: -20, duration: 0.8, delay: 0.1 })
-      .from('.pf-hero-title', { opacity: 0, y: 35, duration: 1.0 }, '-=0.5')
-      .from('.pf-hero-lead', { opacity: 0, y: 25, duration: 0.9 }, '-=0.6')
-      .from('.pf-hero-cta .pf-btn', { opacity: 0, y: 20, stagger: 0.15, duration: 0.8 }, '-=0.5')
-      .from('.pf-kpi-bar', { opacity: 0, y: 30, scale: 0.98, duration: 0.9 }, '-=0.4');
+    gsap.registerPlugin(ScrollTrigger);
 
-    // Section Titles Reveal
-    gsap.utils.toArray('.pf-section-title').forEach((title) => {
-      gsap.from(title, {
-        scrollTrigger: {
-          trigger: title,
-          start: 'top 85%',
-          toggleActions: 'play none none none'
-        },
-        opacity: 0,
-        y: 40,
-        duration: 0.9,
-        ease: 'power3.out'
-      });
-    });
+    // Hero Entrance Sequence (One-time, lightweight)
+    gsap.from('.pf-badge-row', { opacity: 0, y: -15, duration: 0.6, delay: 0.05, ease: 'power2.out' });
+    gsap.from('.pf-hero-title', { opacity: 0, y: 25, duration: 0.7, delay: 0.15, ease: 'power2.out' });
+    gsap.from('.pf-hero-lead', { opacity: 0, y: 15, duration: 0.6, delay: 0.3, ease: 'power2.out' });
+    gsap.from('.pf-hero-cta .pf-btn', { opacity: 0, y: 15, stagger: 0.1, duration: 0.5, delay: 0.4, ease: 'power2.out' });
+    gsap.from('.pf-kpi-bar', { opacity: 0, y: 20, duration: 0.6, delay: 0.5, ease: 'power2.out' });
 
-    // Simplicial Cards Stagger Reveal
-    gsap.from('.pf-simplex-card', {
-      scrollTrigger: {
-        trigger: '.pf-simplex-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none none'
-      },
-      opacity: 0,
-      y: 45,
-      stagger: 0.18,
-      duration: 0.9,
-      ease: 'power3.out'
-    });
-
-    // Math Cards Stagger Reveal
-    gsap.from('.pf-math-card', {
-      scrollTrigger: {
-        trigger: '.pf-math-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none none'
-      },
-      opacity: 0,
-      y: 50,
-      stagger: 0.2,
-      duration: 1.0,
-      ease: 'power3.out'
-    });
-
-    // Architecture Cards Reveal
-    gsap.from('.pf-arch-card', {
-      scrollTrigger: {
-        trigger: '.pf-arch-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none none'
-      },
-      opacity: 0,
-      y: 40,
-      stagger: 0.15,
-      duration: 0.85,
-      ease: 'power3.out'
-    });
-
-    // Applications Cards Reveal
-    gsap.from('.pf-app-card', {
-      scrollTrigger: {
-        trigger: '.pf-app-grid',
-        start: 'top 80%',
-        toggleActions: 'play none none none'
-      },
-      opacity: 0,
-      y: 45,
-      stagger: 0.18,
-      duration: 0.9,
-      ease: 'power3.out'
-    });
-
-    // Benchmarks Table Reveal
-    gsap.from('.pf-table-wrapper', {
-      scrollTrigger: {
-        trigger: '.pf-table-wrapper',
-        start: 'top 85%',
-        toggleActions: 'play none none none'
-      },
-      opacity: 0,
-      y: 40,
-      duration: 0.9,
-      ease: 'power3.out'
+    // Batch Scroll Trigger (Batching avoids hundreds of listeners, maximizing scroll FPS)
+    ScrollTrigger.batch('.pf-card-interactive, .pf-section-title', {
+      start: 'top 88%',
+      once: true, // Fire once and detach listener to keep scroll completely free
+      onEnter: (batch) => {
+        gsap.fromTo(
+          batch,
+          { opacity: 0, y: 28 },
+          { opacity: 1, y: 0, stagger: 0.1, duration: 0.6, ease: 'power2.out', clearProps: 'transform' }
+        );
+      }
     });
   }
 
@@ -174,63 +97,45 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 5. Dynamic Cursor Torch Effect (Subtle red ambient illumination)
+  // 5. Throttled GPU Torch Light with will-change
   const torchLight = document.getElementById('pfTorchLight');
   if (torchLight && window.matchMedia('(pointer: fine)').matches) {
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
-    let curX = mouseX;
-    let curY = mouseY;
+    let isMoving = false;
 
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-    });
-
-    function updateTorch() {
-      curX += (mouseX - curX) * 0.15;
-      curY += (mouseY - curY) * 0.15;
-      torchLight.style.left = `${curX}px`;
-      torchLight.style.top = `${curY}px`;
-      requestAnimationFrame(updateTorch);
-    }
-    updateTorch();
-  }
-
-  // 6. Reading Progress Bar (Top laser line)
-  const scrollIndicator = document.getElementById('pfScrollIndicator');
-  if (scrollIndicator) {
-    window.addEventListener('scroll', () => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      scrollIndicator.style.width = `${progress}%`;
+      if (!isMoving) {
+        isMoving = true;
+        requestAnimationFrame(() => {
+          torchLight.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) translate(-50%, -50%)`;
+          isMoving = false;
+        });
+      }
     }, { passive: true });
   }
 
-  // 7. Micro 3D Tilt Effect on Interactive Zero-Radius Cards
-  const cards = document.querySelectorAll('.pf-card-interactive');
-  if (window.matchMedia('(pointer: fine)').matches) {
-    cards.forEach((card) => {
-      card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-        const rotateX = ((y - centerY) / centerY) * -3.5;
-        const rotateY = ((x - centerX) / centerX) * 3.5;
-
-        card.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-3px)`;
-      });
-
-      card.addEventListener('mouseleave', () => {
-        card.style.transform = '';
-      });
-    });
+  // 6. Native Passive Scroll Progress Indicator
+  const scrollIndicator = document.getElementById('pfScrollIndicator');
+  if (scrollIndicator) {
+    let scrollTicking = false;
+    window.addEventListener('scroll', () => {
+      if (!scrollTicking) {
+        scrollTicking = true;
+        requestAnimationFrame(() => {
+          const scrollTop = window.scrollY || document.documentElement.scrollTop;
+          const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+          const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+          scrollIndicator.style.width = `${progress}%`;
+          scrollTicking = false;
+        });
+      }
+    }, { passive: true });
   }
 
-  // 8. Interactive Button Magnet & Click Wave Pulse
+  // 7. Interactive Button Click Pulse Effect
   const buttons = document.querySelectorAll('.pf-btn');
   buttons.forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -242,13 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
       circle.style.top = `${e.clientY - rect.top - size / 2}px`;
       circle.style.position = 'absolute';
       circle.style.borderRadius = '50%';
-      circle.style.background = 'rgba(255, 255, 255, 0.3)';
+      circle.style.background = 'rgba(255, 255, 255, 0.25)';
       circle.style.transform = 'scale(0)';
-      circle.style.animation = 'btnPulse 0.5s ease-out forwards';
+      circle.style.animation = 'btnPulse 0.4s ease-out forwards';
       circle.style.pointerEvents = 'none';
 
       btn.appendChild(circle);
-      setTimeout(() => circle.remove(), 550);
+      setTimeout(() => circle.remove(), 450);
     });
   });
 });

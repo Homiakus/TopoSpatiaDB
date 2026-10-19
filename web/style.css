@@ -42,8 +42,9 @@
   padding: 0;
 }
 
+/* Let Lenis handle smooth scrolling without native CSS animation fighting */
 html {
-  scroll-behavior: smooth;
+  /* scroll-behavior: smooth removed to prevent frame conflicts */
 }
 
 body.pf-body {
@@ -79,13 +80,14 @@ body.pf-body {
 
 .pf-torch-light {
   position: fixed;
-  width: 600px;
-  height: 600px;
+  top: 0;
+  left: 0;
+  width: 500px;
+  height: 500px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(223, 26, 37, 0.07) 0%, rgba(223, 26, 37, 0.02) 40%, transparent 70%);
-  transform: translate(-50%, -50%);
-  transition: opacity 0.3s ease;
+  background: radial-gradient(circle, rgba(223, 26, 37, 0.08) 0%, rgba(223, 26, 37, 0.02) 40%, transparent 70%);
+  will-change: transform;
   z-index: 1;
 }
 
