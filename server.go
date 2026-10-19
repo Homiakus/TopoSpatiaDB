@@ -1,8 +1,12 @@
 package topospatia
 
 import (
+	"embed"
 	"encoding/json"
+	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -260,13 +264,40 @@ func (s *Server) handleRAGDiffuse(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+//go:embed web/*
+var embeddedWebFS embed.FS
+
 func (s *Server) handleStaticOrDashboard(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	if path == "" {
+		path = "index.html"
+	}
+
+	// First try serving from local disk ./web folder for live hot-reloading development
+	diskPath := filepath.Join("web", filepath.Clean("/"+path))
+	if info, err := os.Stat(diskPath); err == nil && !info.IsDir() {
+		http.ServeFile(w, r, diskPath)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(DashboardHTML))
+
+	// Second try serving from embedded filesystem
+	subFS, err := fs.Sub(embeddedWebFS, "web")
+	if err == nil {
+		if f, err := subFS.Open(path); err == nil {
+			_ = f.Close()
+			http.FileServer(http.FS(subFS)).ServeHTTP(w, r)
+			return
+		}
+	}
+
+	// Fallback to minimal dashboard HTML if files not found
+	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(DashboardHTML))
+		return
+	}
+
+	http.NotFound(w, r)
 }
 
 const DashboardHTML = `<!DOCTYPE html>
