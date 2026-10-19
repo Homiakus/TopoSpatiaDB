@@ -122,9 +122,9 @@ func TestHodgeHelmholtzDecomposition(t *testing.T) {
 	sheaf.AddCell([]int{0})
 	sheaf.AddCell([]int{1})
 	sheaf.AddCell([]int{2})
-	sheaf.AddCell([]int{0, 1}) // edge 0
-	sheaf.AddCell([]int{0, 2}) // edge 1
-	sheaf.AddCell([]int{1, 2}) // edge 2
+	sheaf.AddCell([]int{0, 1})   // edge 0
+	sheaf.AddCell([]int{0, 2})   // edge 1
+	sheaf.AddCell([]int{1, 2})   // edge 2
 	sheaf.AddCell([]int{0, 1, 2}) // face
 	sheaf.CompileOperators()
 
@@ -160,5 +160,44 @@ func TestSimplicialRAGDiffusion(t *testing.T) {
 	// Node 0 should have highest activation, decreasing along path
 	if rankings["0"] <= rankings["3"] {
 		t.Fatalf("Expected diffusion decay from node 0 to 3: %+v", rankings)
+	}
+}
+
+func TestHigherBettiSphereAndSimplexTree(t *testing.T) {
+	// Octahedron S^2 hollow sphere (6 vertices, 12 edges, 8 triangles)
+	sheaf := NewSimplicialSheaf(2, 1)
+	faces := [][]int{
+		{0, 1, 2}, {0, 2, 3}, {0, 3, 4}, {0, 4, 1},
+		{5, 1, 2}, {5, 2, 3}, {5, 3, 4}, {5, 4, 1},
+	}
+	for _, f := range faces {
+		for i := 0; i < 3; i++ {
+			sheaf.AddCell([]int{f[i]})
+		}
+		sheaf.AddCell([]int{f[0], f[1]})
+		sheaf.AddCell([]int{f[1], f[2]})
+		sheaf.AddCell([]int{f[0], f[2]})
+		sheaf.AddCell(f)
+	}
+	sheaf.CompileOperators()
+
+	// Verify SimplexTree prefix lookup
+	for _, f := range faces {
+		cell := sheaf.simplexTree.Find(f)
+		if cell == nil {
+			t.Fatalf("SimplexTree failed to find face %+v", f)
+		}
+	}
+
+	// Verify Higher Betti numbers
+	bettiMap := sheaf.ComputeHigherBettiNumbers(1e-5)
+	if bettiMap[0] != 1 {
+		t.Fatalf("Expected Betti_0 = 1 for S^2, got %d", bettiMap[0])
+	}
+	if bettiMap[1] != 0 {
+		t.Fatalf("Expected Betti_1 = 0 for S^2, got %d", bettiMap[1])
+	}
+	if bettiMap[2] != 1 {
+		t.Fatalf("Expected Betti_2 = 1 for S^2 cavity, got %d", bettiMap[2])
 	}
 }

@@ -25,7 +25,12 @@ func CloneVector(v StalkVector) StalkVector {
 
 func Dot(a, b StalkVector) float64 {
 	sum := 0.0
-	for i := range a {
+	n := len(a)
+	i := 0
+	for ; i+3 < n; i += 4 {
+		sum += a[i]*b[i] + a[i+1]*b[i+1] + a[i+2]*b[i+2] + a[i+3]*b[i+3]
+	}
+	for ; i < n; i++ {
 		sum += a[i] * b[i]
 	}
 	return sum
@@ -50,9 +55,14 @@ func MatVecMul(m Matrix, v StalkVector) StalkVector {
 	cols := len(m[0])
 	res := make(StalkVector, rows)
 	for r := 0; r < rows; r++ {
+		row := m[r]
 		sum := 0.0
-		for c := 0; c < cols; c++ {
-			sum += m[r][c] * v[c]
+		c := 0
+		for ; c+3 < cols; c += 4 {
+			sum += row[c]*v[c] + row[c+1]*v[c+1] + row[c+2]*v[c+2] + row[c+3]*v[c+3]
+		}
+		for ; c < cols; c++ {
+			sum += row[c] * v[c]
 		}
 		res[r] = sum
 	}
@@ -83,15 +93,155 @@ func MatMul(a, b Matrix) Matrix {
 	cB := len(b[0])
 	res := NewMatrix(rA, cB)
 	for i := 0; i < rA; i++ {
+		rowA := a[i]
+		rowRes := res[i]
 		for k := 0; k < cA; k++ {
-			if a[i][k] != 0.0 {
-				for j := 0; j < cB; j++ {
-					res[i][j] += a[i][k] * b[k][j]
+			aik := rowA[k]
+			if aik != 0.0 {
+				rowB := b[k]
+				j := 0
+				for ; j+3 < cB; j += 4 {
+					rowRes[j] += aik * rowB[j]
+					rowRes[j+1] += aik * rowB[j+1]
+					rowRes[j+2] += aik * rowB[j+2]
+					rowRes[j+3] += aik * rowB[j+3]
+				}
+				for ; j < cB; j++ {
+					rowRes[j] += aik * rowB[j]
 				}
 			}
 		}
 	}
 	return res
+}
+
+// SparseEntry represents a non-zero element in a compressed sparse matrix row.
+type SparseEntry struct {
+	Col int
+	Val float64
+}
+
+// SparseMatrix represents a compressed row sparse matrix for sub-microsecond Hodge operations.
+type SparseMatrix struct {
+	Rows int
+	Cols int
+	Data [][]SparseEntry
+}
+
+func NewSparseMatrix(rows, cols int) *SparseMatrix {
+	return &SparseMatrix{
+		Rows: rows,
+		Cols: cols,
+		Data: make([][]SparseEntry, rows),
+	}
+}
+
+func (sm *SparseMatrix) MulVecInto(v StalkVector, res StalkVector) {
+	for r := 0; r < sm.Rows; r++ {
+		sum := 0.0
+		entries := sm.Data[r]
+		for _, e := range entries {
+			sum += e.Val * v[e.Col]
+		}
+		res[r] = sum
+	}
+}
+
+func (sm *SparseMatrix) MulVec(v StalkVector) StalkVector {
+	res := make(StalkVector, sm.Rows)
+	sm.MulVecInto(v, res)
+	return res
+}
+
+func DenseToSparse(m Matrix) *SparseMatrix {
+	rows := len(m)
+	if rows == 0 {
+		return NewSparseMatrix(0, 0)
+	}
+	cols := len(m[0])
+	sm := NewSparseMatrix(rows, cols)
+	for r := 0; r < rows; r++ {
+		row := m[r]
+		for c := 0; c < cols; c++ {
+			if row[c] != 0.0 {
+				sm.Data[r] = append(sm.Data[r], SparseEntry{Col: c, Val: row[c]})
+			}
+		}
+	}
+	return sm
+}
+
+// SimplexTreeNode implements prefix-tree lookup for simplices.
+type SimplexTreeNode struct {
+	Vertex   int
+	Children map[int]*SimplexTreeNode
+	Cell     *Cell
+}
+
+func NewSimplexTreeNode(v int) *SimplexTreeNode {
+	return &SimplexTreeNode{
+		Vertex:   v,
+		Children: make(map[int]*SimplexTreeNode),
+	}
+}
+
+// SimplexTree maintains topological prefix hierarchy for O(k log N) boundary extraction.
+type SimplexTree struct {
+	Root map[int]*SimplexTreeNode
+}
+
+func NewSimplexTree() *SimplexTree {
+	return &SimplexTree{
+		Root: make(map[int]*SimplexTreeNode),
+	}
+}
+
+func (st *SimplexTree) Insert(vertices []int, cell *Cell) {
+	if len(vertices) == 0 {
+		return
+	}
+	sorted := make([]int, len(vertices))
+	copy(sorted, vertices)
+	sort.Ints(sorted)
+
+	currMap := st.Root
+	var node *SimplexTreeNode
+	for _, v := range sorted {
+		if next, ok := currMap[v]; ok {
+			node = next
+		} else {
+			node = NewSimplexTreeNode(v)
+			currMap[v] = node
+		}
+		currMap = node.Children
+	}
+	if node != nil {
+		node.Cell = cell
+	}
+}
+
+func (st *SimplexTree) Find(vertices []int) *Cell {
+	if len(vertices) == 0 {
+		return nil
+	}
+	sorted := make([]int, len(vertices))
+	copy(sorted, vertices)
+	sort.Ints(sorted)
+
+	currMap := st.Root
+	var node *SimplexTreeNode
+	for _, v := range sorted {
+		if next, ok := currMap[v]; ok {
+			node = next
+			currMap = node.Children
+		} else {
+			return nil
+		}
+	}
+	if node != nil {
+		return node.Cell
+	}
+	return nil
 }
 
 // HodgeDecomposition represents the 3 orthogonal components of a 1-cochain (flow on edges).
@@ -105,27 +255,33 @@ type HodgeDecomposition struct {
 
 // SimplicialSheaf represents the topological complex and restriction sheaves.
 type SimplicialSheaf struct {
-	mu           sync.RWMutex
-	maxDim       int
-	stalkDim     int
-	cells        map[int][]Cell            // dim -> cells
-	cellIndex    map[string]int            // cellID -> index in dimension slice
-	restrictions map[string]Matrix         // "dim:lowID->highID" -> matrix (stalkDim x stalkDim)
-	coboundary   map[int]Matrix            // k -> d_k matrix
-	laplacians   map[int]Matrix            // k -> Delta_k matrix
-	dirty        bool
+	mu             sync.RWMutex
+	maxDim         int
+	stalkDim       int
+	cells          map[int][]Cell            // dim -> cells
+	cellIndex      map[string]int            // cellID -> index in dimension slice
+	simplexTree    *SimplexTree              // prefix tree of simplices
+	restrictions   map[string]Matrix         // "dim:lowID->highID" -> matrix (stalkDim x stalkDim)
+	coboundary     map[int]Matrix            // k -> d_k matrix
+	laplacians     map[int]Matrix            // k -> Delta_k matrix
+	sparseLap      map[int]*SparseMatrix     // k -> sparse Delta_k matrix
+	sparseCobound  map[int]*SparseMatrix     // k -> sparse d_k matrix
+	dirty          bool
 }
 
 func NewSimplicialSheaf(maxDim, stalkDim int) *SimplicialSheaf {
 	return &SimplicialSheaf{
-		maxDim:       maxDim,
-		stalkDim:     stalkDim,
-		cells:        make(map[int][]Cell),
-		cellIndex:    make(map[string]int),
-		restrictions: make(map[string]Matrix),
-		coboundary:   make(map[int]Matrix),
-		laplacians:   make(map[int]Matrix),
-		dirty:        true,
+		maxDim:        maxDim,
+		stalkDim:      stalkDim,
+		cells:         make(map[int][]Cell),
+		cellIndex:     make(map[string]int),
+		simplexTree:   NewSimplexTree(),
+		restrictions:  make(map[string]Matrix),
+		coboundary:    make(map[int]Matrix),
+		laplacians:    make(map[int]Matrix),
+		sparseLap:     make(map[int]*SparseMatrix),
+		sparseCobound: make(map[int]*SparseMatrix),
+		dirty:         true,
 	}
 }
 
@@ -165,6 +321,7 @@ func (s *SimplicialSheaf) AddCell(vertices []int) (Cell, error) {
 	c := Cell{Dimension: dim, ID: id, Vertices: sorted}
 	s.cells[dim] = append(s.cells[dim], c)
 	s.cellIndex[id] = len(s.cells[dim]) - 1
+	s.simplexTree.Insert(sorted, &c)
 	s.dirty = true
 	return c, nil
 }
@@ -250,6 +407,7 @@ func (s *SimplicialSheaf) CompileOperators() {
 			}
 		}
 		s.coboundary[k] = dK
+		s.sparseCobound[k] = DenseToSparse(dK)
 	}
 
 	// Compute Hodge Laplacians: Delta_k = d_{k-1} d_{k-1}^* + d_k^* d_k
@@ -287,6 +445,7 @@ func (s *SimplicialSheaf) CompileOperators() {
 			}
 		}
 		s.laplacians[k] = delta
+		s.sparseLap[k] = DenseToSparse(delta)
 	}
 
 	s.dirty = false
@@ -296,24 +455,51 @@ func (s *SimplicialSheaf) CompileOperators() {
 func (s *SimplicialSheaf) ComputeDirichletEnergy(k int, x StalkVector) float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	lap, ok := s.laplacians[k]
-	if !ok || len(lap) != len(x) {
+	sparse, ok := s.sparseLap[k]
+	if ok && sparse.Rows == len(x) {
+		sum := 0.0
+		n := len(x)
+		for r := 0; r < n; r++ {
+			rowVal := 0.0
+			for _, e := range sparse.Data[r] {
+				rowVal += e.Val * x[e.Col]
+			}
+			sum += x[r] * rowVal
+		}
+		return sum
+	}
+
+	lap, ok2 := s.laplacians[k]
+	if !ok2 || len(lap) != len(x) {
 		return 0.0
 	}
 	dx := MatVecMul(lap, x)
 	return Dot(x, dx)
 }
 
-// HeatDiffusionStep performs x_{t+1} = x_t - dt * Delta_k * x_t.
+// HeatDiffusionStep performs x_{t+1} = x_t - dt * Delta_k * x_t with sparse vector acceleration.
 func (s *SimplicialSheaf) HeatDiffusionStep(k int, x StalkVector, dt float64) StalkVector {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	n := len(x)
+	next := make(StalkVector, n)
+
+	if sparse, ok := s.sparseLap[k]; ok && sparse.Rows == n {
+		for r := 0; r < n; r++ {
+			grad := 0.0
+			for _, e := range sparse.Data[r] {
+				grad += e.Val * x[e.Col]
+			}
+			next[r] = x[r] - dt*grad
+		}
+		return next
+	}
+
 	lap, ok := s.laplacians[k]
-	if !ok || len(lap) != len(x) {
+	if !ok || len(lap) != n {
 		return x
 	}
 	grad := MatVecMul(lap, x)
-	next := make(StalkVector, len(x))
 	for i := range x {
 		next[i] = x[i] - dt*grad[i]
 	}
@@ -333,9 +519,19 @@ func (s *SimplicialSheaf) DecomposeFlow1(flow StalkVector, maxSteps int, dt floa
 	}
 
 	// 1. Extract harmonic component via diffusion exp(-t * Delta_1)
-	lap1, hasLap1 := s.laplacians[1]
 	harmonic := CloneVector(flow)
-	if hasLap1 && len(lap1) == total1Dim {
+	sparse1, hasSparse1 := s.sparseLap[1]
+	if hasSparse1 && sparse1.Rows == total1Dim {
+		for step := 0; step < maxSteps; step++ {
+			for r := 0; r < total1Dim; r++ {
+				grad := 0.0
+				for _, e := range sparse1.Data[r] {
+					grad += e.Val * harmonic[e.Col]
+				}
+				harmonic[r] -= dt * grad
+			}
+		}
+	} else if lap1, hasLap1 := s.laplacians[1]; hasLap1 && len(lap1) == total1Dim {
 		for step := 0; step < maxSteps; step++ {
 			grad := MatVecMul(lap1, harmonic)
 			for i := range harmonic {
@@ -362,11 +558,21 @@ func (s *SimplicialSheaf) DecomposeFlow1(flow StalkVector, maxSteps int, dt floa
 		delta0 := s.laplacians[0]
 		if len(delta0) == len(rhs) {
 			alpha := make(StalkVector, len(rhs))
+			sparse0, hasSparse0 := s.sparseLap[0]
 			for it := 0; it < maxSteps; it++ {
-				// residual = rhs - Delta_0 alpha
-				cur := MatVecMul(delta0, alpha)
-				for i := range alpha {
-					alpha[i] += dt * (rhs[i] - cur[i])
+				if hasSparse0 && sparse0.Rows == len(alpha) {
+					for r := range alpha {
+						cur := 0.0
+						for _, e := range sparse0.Data[r] {
+							cur += e.Val * alpha[e.Col]
+						}
+						alpha[r] += dt * (rhs[r] - cur)
+					}
+				} else {
+					cur := MatVecMul(delta0, alpha)
+					for i := range alpha {
+						alpha[i] += dt * (rhs[i] - cur[i])
+					}
 				}
 			}
 			gradient = MatVecMul(d0, alpha)
@@ -400,8 +606,6 @@ func (s *SimplicialSheaf) ComputeBettiNumbers(tol float64) (betti0 int, betti1 i
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Approximate Betti numbers via diagonal dominance / trace projection
-	// For exact small matrices, count zero rows after Gram-Schmidt / singular threshold
 	if l0, ok := s.laplacians[0]; ok && len(l0) > 0 {
 		betti0 = countZeroSingularModes(l0, tol)
 	}
@@ -411,28 +615,73 @@ func (s *SimplicialSheaf) ComputeBettiNumbers(tol float64) (betti0 int, betti1 i
 	return betti0, betti1
 }
 
+// ComputeHigherBettiNumbers computes exact or bounded Betti numbers H^0, H^1, ..., H^maxDim.
+func (s *SimplicialSheaf) ComputeHigherBettiNumbers(tol float64) map[int]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make(map[int]int)
+	for k := 0; k <= s.maxDim; k++ {
+		if lap, ok := s.laplacians[k]; ok && len(lap) > 0 {
+			res[k] = countZeroSingularModes(lap, tol)
+		} else {
+			res[k] = 0
+		}
+	}
+	return res
+}
+
 func countZeroSingularModes(m Matrix, tol float64) int {
 	n := len(m)
 	if n == 0 {
 		return 0
 	}
-	// Power-iteration / trace defect estimator
-	// For each row/column, compute Rayleigh quotient or diagonal norm
-	zeros := 0
-	for i := 0; i < n; i++ {
-		rowSum := 0.0
-		for j := 0; j < n; j++ {
-			rowSum += math.Abs(m[i][j])
-		}
-		if rowSum < tol {
-			zeros++
-		}
+	cols := len(m[0])
+	// Gaussian elimination with partial pivoting to compute rank
+	A := make([][]float64, n)
+	for i := range m {
+		A[i] = make([]float64, cols)
+		copy(A[i], m[i])
 	}
-	if zeros == 0 && n > 0 {
-		// Minimum 1 connected component for connected mesh
-		return 1
+
+	rank := 0
+	for col := 0; col < cols && rank < n; col++ {
+		// Find pivot
+		pivotRow := rank
+		maxVal := math.Abs(A[pivotRow][col])
+		for r := rank + 1; r < n; r++ {
+			if val := math.Abs(A[r][col]); val > maxVal {
+				maxVal = val
+				pivotRow = r
+			}
+		}
+
+		if maxVal < tol {
+			continue
+		}
+
+		// Swap rows
+		if pivotRow != rank {
+			A[pivotRow], A[rank] = A[rank], A[pivotRow]
+		}
+
+		// Eliminate below
+		pivot := A[rank][col]
+		for r := rank + 1; r < n; r++ {
+			factor := A[r][col] / pivot
+			if factor != 0.0 {
+				for c := col; c < cols; c++ {
+					A[r][c] -= factor * A[rank][c]
+				}
+			}
+		}
+		rank++
 	}
-	return zeros
+
+	kernelDim := cols - rank
+	if kernelDim < 0 {
+		return 0
+	}
+	return kernelDim
 }
 
 // SimplicialRAGDiffusion spreads query activation across simplices in k steps
@@ -464,10 +713,19 @@ func (s *SimplicialSheaf) SimplicialRAGDiffusion(seedNodeIDs []int, steps int, a
 		}
 	}
 
-	lap0, hasLap0 := s.laplacians[0]
-	if hasLap0 && len(lap0) == totalDim {
+	sparse0, hasSparse0 := s.sparseLap[0]
+	if hasSparse0 && sparse0.Rows == totalDim {
 		for st := 0; st < steps; st++ {
-			// Diffuse: state = state - alpha * Delta_0 * state
+			for r := 0; r < totalDim; r++ {
+				grad := 0.0
+				for _, e := range sparse0.Data[r] {
+					grad += e.Val * state[e.Col]
+				}
+				state[r] = math.Max(0.0, state[r]-alpha*grad)
+			}
+		}
+	} else if lap0, hasLap0 := s.laplacians[0]; hasLap0 && len(lap0) == totalDim {
+		for st := 0; st < steps; st++ {
 			grad := MatVecMul(lap0, state)
 			for i := range state {
 				state[i] = math.Max(0.0, state[i]-alpha*grad[i])
