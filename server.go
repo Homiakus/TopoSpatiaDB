@@ -273,6 +273,13 @@ func (s *Server) handleStaticOrDashboard(w http.ResponseWriter, r *http.Request)
 		path = "index.html"
 	}
 
+	// Performance Caching Headers
+	if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+		w.Header().Set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+	} else if strings.HasSuffix(path, ".html") || path == "index.html" {
+		w.Header().Set("Cache-Control", "public, max-age=3600, must-revalidate")
+	}
+
 	// First try serving from local disk ./web folder for live hot-reloading development
 	diskPath := filepath.Join("web", filepath.Clean("/"+path))
 	if info, err := os.Stat(diskPath); err == nil && !info.IsDir() {

@@ -6,14 +6,17 @@
   <title>TopoSpatiaDB — Multidimensional Sheaf Holographic DBMS</title>
   <meta name="description" content="TopoSpatiaDB производит бесконфликтную репликацию данных через аппарат многомерной пучковой голографии и тепловой поток Лапласиана Ходжа — устраняя CAP-блокировки при 7.48M QPS." />
 
-  <!-- Typography: Plus Jakarta Sans & JetBrains Mono / Roboto -->
+  <!-- Network Preconnect & DNS-Prefetch for Fast Asset Fetching -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="dns-prefetch" href="https://unpkg.com">
 
-  <!-- KaTeX CSS for Perfect Mathematical Rendering -->
+  <!-- Optimized Typography with font-display: swap -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- KaTeX CSS for Mathematical Rendering -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="pf-body">
@@ -509,15 +512,15 @@ curl -X POST http://localhost:8089/api/v1/records \
     </div>
   </footer>
 
-  <!-- KaTeX Scripts for Formula Rendering -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+  <!-- KaTeX Scripts for Formula Rendering (Deferred for instant First Contentful Paint) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 
-  <!-- Lenis Ultra-Smooth Inertial Scroll & GSAP ScrollTrigger Suite -->
-  <script src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <!-- Lenis Ultra-Smooth Inertial Scroll & GSAP ScrollTrigger Suite (Deferred) -->
+  <script defer src="https://unpkg.com/lenis@1.1.18/dist/lenis.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
-  <script src="app.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>
