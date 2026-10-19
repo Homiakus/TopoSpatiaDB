@@ -316,6 +316,94 @@ db, err := topospatia.Open(opts)
 
 ---
 
+## 🌐 Встраивание в программы на других языках (Multi-Language FFI)
+
+TopoSpatiaDB компилируется в универсальную разделяемую библиотеку **`libtopospatia.so`** с чистым C-ABI (`bindings/c/libtopospatia.h`), позволяя подключать базу данных in-process с максимальной производительностью без межпроцессных накладных расходов.
+
+### 1. Python (`bindings/python`)
+Полноценный высокоуровневый клиент на базе `ctypes`:
+
+```python
+from topospatia import DB
+
+# Открытие embedded базы данных
+with DB("./my_python_data", max_dim=2, stalk_dim=2) as db:
+    # 1. Создание топологии: ребро между узлами 0 и 1
+    c0 = db.add_cell([0])
+    c1 = db.add_cell([1])
+    db.add_cell([0, 1])
+    db.compile()
+
+    # 2. Сохранение документа в стебель клетки
+    db.put("py-doc-1", c0, dim=0, vector=[10.0, 5.0], payload={"service": "payment-api"})
+
+    # 3. Мгновенное чтение документа
+    rec = db.get("py-doc-1")
+    print("Record:", rec["id"], rec["vector"])
+
+    # 4. Топологический консенсус и числа Бетти
+    diff_report = db.diffuse()
+    betti = db.betti_numbers()
+    print("Betti numbers:", betti, "Converged:", diff_report["converged"])
+```
+
+### 2. Rust (`bindings/rust`)
+Типобезопасный, идиоматичный Rust-крейт с RAII-управлением памятью (`Drop`):
+
+```rust
+use topospatia::DB;
+use serde_json::json;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Открытие базы данных с автоматическим закрытием через RAII
+    let db = DB::open_default("./my_rust_data")?;
+
+    // Создание симплициального комплекса
+    let c0 = db.add_cell(&[0])?;
+    let _c1 = db.add_cell(&[1])?;
+    db.add_cell(&[0, 1])?;
+    db.compile()?;
+
+    // Вставка документа
+    let payload = json!({ "cluster": "aws-eu-1", "shards": 32 });
+    db.put("rust-node-0", &c0, 0, &[14.2, 8.1], &payload)?;
+
+    // Топологическая диффузия Ходжа
+    let report = db.diffuse()?;
+    println!("Consensus converged: {}", report["converged"]);
+
+    Ok(())
+}
+```
+
+### 3. C / C++ (`bindings/c`)
+Прямое подключение заголовочного файла `libtopospatia.h`:
+
+```c
+#include <stdio.h>
+#include "bindings/c/libtopospatia.h"
+
+int main() {
+    uintptr_t db = topospatia_open("./c_data", 2, 2, 0);
+    int verts[] = {0, 1};
+    char* edge_id = topospatia_add_cell(db, verts, 2);
+    topospatia_compile(db);
+
+    double vec[] = {1.0, 2.0};
+    topospatia_put(db, "doc-1", edge_id, 1, vec, 2, "{\"lang\":\"c\"}");
+
+    char* res = topospatia_diffuse(db);
+    printf("Consensus: %s\n", res);
+
+    topospatia_free_string(edge_id);
+    topospatia_free_string(res);
+    topospatia_close(db);
+    return 0;
+}
+```
+
+---
+
 ## 📄 Лицензия
 
 Проект распространяется под открытой лицензией [BSD 3-Clause License](LICENSE).  

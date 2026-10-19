@@ -1,0 +1,6 @@
+bindings/rust/target/
+bindings/python/topospatia/*.pyc
+bindings/python/topospatia/__pycache__/
+bindings/python/build/
+bindings/python/dist/
+bindings/python/*.egg-info/
