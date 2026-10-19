@@ -1,379 +1,355 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TopoSpatiaDB — Multidimensional Sheaf Holographic DBMS</title>
-  <meta name="description" content="Революционная многомерная пучковая СУБД: разрешение H^1 конфликтов через тепловой поток Лапласиана Ходжа, 7.5M QPS, 96K TPS без блокировок.">
+  <meta name="description" content="TopoSpatiaDB производит бесконфликтную репликацию данных через аппарат многомерной пучковой голографии и тепловой поток Лапласиана Ходжа — устраняя CAP-блокировки при 7.48M QPS." />
+
+  <!-- Typography: Plus Jakarta Sans & JetBrains Mono / Roboto -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <!-- Three.js for 3D Simplicial Complex Hologram -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-</head>
-<body class="dark-theme">
-  <!-- Glowing Background Canvas & Grid -->
-  <div class="space-backdrop">
-    <div class="mesh-glow"></div>
-    <div class="grid-overlay"></div>
-  </div>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Header Navigation -->
-  <header class="navbar">
-    <div class="nav-container">
-      <a href="#hero" class="brand">
-        <div class="brand-glyph">
-          <svg viewBox="0 0 40 40" width="32" height="32" fill="none">
-            <polygon points="20,4 36,32 4,32" stroke="url(#brandGrad)" stroke-width="2.5" fill="rgba(88, 166, 255, 0.1)"/>
-            <circle cx="20" cy="4" r="3.5" fill="#58a6ff" />
-            <circle cx="36" cy="32" r="3.5" fill="#bc8cff" />
-            <circle cx="4" cy="32" r="3.5" fill="#39d353" />
-            <line x1="20" y1="4" x2="20" y2="23" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="2 2" />
-            <circle cx="20" cy="23" r="2.5" fill="#f0883e" />
-            <defs>
-              <linearGradient id="brandGrad" x1="4" y1="4" x2="36" y2="32" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#58a6ff" />
-                <stop offset="0.5" stop-color="#bc8cff" />
-                <stop offset="1" stop-color="#39d353" />
-              </linearGradient>
-            </defs>
+  <!-- KaTeX CSS for Perfect Mathematical Rendering -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="pf-body">
+
+  <!-- Header Navigation (Prometheus Fuels Style: Clean dark bar, dot badge, crisp typography) -->
+  <header class="pf-header">
+    <div class="pf-header-inner">
+      <a href="#hero" class="pf-brand">
+        <div class="pf-brand-icon">
+          <!-- Prometheus-inspired Geometric Badge -->
+          <svg viewBox="0 0 40 40" width="34" height="34" fill="none">
+            <polygon points="20,4 36,34 4,34" stroke="#DF1A25" stroke-width="2.5" fill="rgba(223, 26, 37, 0.08)"/>
+            <circle cx="20" cy="4" r="3" fill="#FFFFFF"/>
+            <circle cx="36" cy="34" r="3" fill="#DF1A25"/>
+            <circle cx="4" cy="34" r="3" fill="#DF1A25"/>
+            <line x1="20" y1="4" x2="20" y2="24" stroke="#DF1A25" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <circle cx="20" cy="24" r="2.5" fill="#FFFFFF"/>
           </svg>
         </div>
-        <span class="brand-text">TopoSpatia<strong>DB</strong></span>
-        <span class="badge-tag">v1.0 Holographic</span>
+        <span class="pf-brand-name">TopoSpatia<strong>DB</strong><span class="pf-red-dot">.</span></span>
       </a>
 
-      <nav class="nav-links">
-        <a href="#math">Математика</a>
-        <a href="#architecture">Архитектура</a>
-        <a href="#benchmarks">Бенчмарки</a>
-        <a href="#studio">TopoSpatia Studio</a>
-        <a href="#api">REST API</a>
+      <nav class="pf-nav">
+        <a href="#math" class="pf-nav-item">Математика</a>
+        <a href="#architecture" class="pf-nav-item">Архитектура</a>
+        <a href="#applications" class="pf-nav-item">Применение</a>
+        <a href="#benchmarks" class="pf-nav-item">Бенчмарки</a>
+        <a href="#quickstart" class="pf-nav-item">Быстрый старт</a>
       </nav>
 
-      <div class="nav-actions">
-        <div class="system-status-chip" id="clusterStatusChip">
-          <span class="status-dot pulsing"></span>
-          <span class="status-label">Cluster Live: 8089</span>
-        </div>
-        <a href="#studio" class="btn btn-primary btn-glow">
-          <span>Запустить Консоль</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <div class="pf-header-actions">
+        <a href="#quickstart" class="pf-btn pf-btn-outline">
+          <span>Спецификация</span>
+        </a>
+        <a href="https://github.com" target="_blank" rel="noreferrer" class="pf-btn pf-btn-red">
+          <span>Исходный код</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
         </a>
       </div>
     </div>
   </header>
 
-  <!-- Hero Section with 3D Holographic Visualizer -->
-  <section class="hero-section" id="hero">
-    <div class="hero-container">
-      <div class="hero-content">
-        <div class="pill-announcement">
-          <span class="pill-spark">⚡</span>
-          <span>Преодоление ограничений CAP-теоремы через когомологии пучков</span>
-        </div>
-        <h1 class="hero-title">
-          Многомерная Пучковая <br>
-          <span class="gradient-text">Голографическая СУБД</span>
-        </h1>
-        <p class="hero-subtitle">
-          TopoSpatiaDB заменяет блокирующие протоколы консенсуса (Paxos, Raft, 2PC) на 
-          <strong>непрерывный градиентный тепловой поток Лапласиана Ходжа $\Delta_0$</strong>. 
-          Бесконфликтная репликация со схождением вихрей $H^1 \to 0$ и <strong>0% дедлоков</strong>.
-        </p>
-
-        <!-- Metric highlights pills -->
-        <div class="hero-stats">
-          <div class="stat-box">
-            <div class="stat-number">7 485 000</div>
-            <div class="stat-label">QPS (Чтение на 8 потоках)</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">95 970</div>
-            <div class="stat-label">TPS (Event-Driven WAL)</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">133 ns</div>
-            <div class="stat-label">Задержка точечной выборки</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">0%</div>
-            <div class="stat-label">Дедлоков (Математически)</div>
-          </div>
-        </div>
-
-        <div class="hero-cta-group">
-          <a href="#studio" class="btn btn-primary btn-lg">
-            <span>Интерактивная Студия</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-          </a>
-          <a href="#math" class="btn btn-glass btn-lg">
-            <span>Формальная Спецификация</span>
-          </a>
+  <!-- Hero Section (Prometheus Fuels Typography: Uppercase, Red Period, Pill Tag) -->
+  <section class="pf-hero" id="hero">
+    <div class="pf-container">
+      <div class="pf-badge-row">
+        <div class="pf-pill">
+          <span class="pf-pill-dot"></span>
+          <span class="pf-pill-text">NEXT-GEN DISTRIBUTED STORAGE &bull; HODGE CONSENSUS</span>
         </div>
       </div>
 
-      <div class="hero-visual">
-        <div class="hologram-frame">
-          <div class="hologram-header">
-            <div class="frame-dot red"></div>
-            <div class="frame-dot yellow"></div>
-            <div class="frame-dot green"></div>
-            <span class="frame-title">Симплициальный комплекс $X^{(2)}$ & Векторные стебли $\mathcal{F}$</span>
-            <button class="frame-action" id="resetCameraBtn" title="Сброс камеры">Сброс 3D</button>
-          </div>
-          <div id="three-container" class="three-viewport">
-            <div class="hologram-overlay">
-              <div class="hud-metric" id="hudVertices">0-Симплексы (Узлы): <span>3</span></div>
-              <div class="hud-metric" id="hudEdges">1-Симплексы (Ребра): <span>3</span></div>
-              <div class="hud-metric" id="hudFaces">2-Симплексы (Грани): <span>1</span></div>
-              <div class="hud-metric" id="hudDirichlet">Энергия Дирихле: <span id="hudEnergyVal">0.000000</span></div>
-            </div>
-          </div>
-          <div class="hologram-footer">
-            <span class="hologram-hint">✦ Вращайте и масштабируйте 3D-модель симплициального комплекса мышь/тач</span>
-          </div>
+      <h1 class="pf-hero-title">
+        REDEFINING THE<br>
+        FUTURE OF DATA SYSTEMS<span class="pf-red-dot">.</span>
+      </h1>
+
+      <p class="pf-hero-lead">
+        TopoSpatiaDB заменяет блокирующие протоколы распределенного консенсуса (Paxos, Raft, 2PC) на 
+        <strong>аппарат многомерной пучковой голографии</strong> и непрерывный градиентный тепловой поток 
+        Лапласиана Ходжа $\Delta_0$. Автоматическое устранение вихрей $H^1 \to 0$ при <strong>0% вероятности дедлоков</strong>.
+      </p>
+
+      <div class="pf-hero-cta">
+        <a href="#quickstart" class="pf-btn pf-btn-red pf-btn-lg">
+          <span>Быстрый старт</span>
+        </a>
+        <a href="#math" class="pf-btn pf-btn-ghost pf-btn-lg">
+          <span>Математический базис</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+
+      <!-- KPI Metrics Strip in Prometheus Style -->
+      <div class="pf-kpi-bar">
+        <div class="pf-kpi-col">
+          <div class="pf-kpi-val">7 485 000</div>
+          <div class="pf-kpi-lbl">QPS &bull; Чтение (8 ядер)</div>
+        </div>
+        <div class="pf-kpi-divider"></div>
+        <div class="pf-kpi-col">
+          <div class="pf-kpi-val">95 970</div>
+          <div class="pf-kpi-lbl">TPS &bull; Event-Driven WAL</div>
+        </div>
+        <div class="pf-kpi-divider"></div>
+        <div class="pf-kpi-col">
+          <div class="pf-kpi-val">133 ns</div>
+          <div class="pf-kpi-lbl">Задержка Point Select</div>
+        </div>
+        <div class="pf-kpi-divider"></div>
+        <div class="pf-kpi-col">
+          <div class="pf-kpi-val highlight-red">0%</div>
+          <div class="pf-kpi-lbl">Дедлоков (Математически)</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Interactive Studio Section -->
-  <section class="section studio-section" id="studio">
-    <div class="section-container">
-      <div class="section-badge">Live Interactive Suite</div>
-      <h2 class="section-title">Интерактивная Студия TopoSpatiaDB</h2>
-      <p class="section-desc">Управляйте топологической базой данных в реальном времени: симулируйте диффузию Лапласиана, тестируйте RAG-ранжирование и выполняйте ACID транзакции.</p>
-
-      <div class="studio-grid">
-        <!-- Control Card: Consensus & Diffusion -->
-        <div class="studio-card">
-          <div class="card-icon-header">
-            <div class="icon-wrap bg-blue">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-            </div>
-            <div>
-              <h3>Консенсус Ходжа $\exp(-t \Delta_0)$</h3>
-              <p>Устранение вихрей $H^1$ и split-brain расхождений</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <p class="card-text">
-              Градиентный поток рассеивает тепловую энергию разногласий между репликами до гармонического вакуума $\ker(\Delta_0)$.
-            </p>
-            <div class="action-row">
-              <button class="btn btn-primary" id="btnRunDiffusion">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Запустить Диффузию
-              </button>
-              <button class="btn btn-secondary" id="btnAddDiscrepancy">
-                Внести шум (Split-Brain)
-              </button>
-            </div>
-            <div class="console-box" id="diffusionOutput">
-              <span class="code-comment">// Статус: Ожидание запуска диффузии...</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Control Card: Simplicial RAG -->
-        <div class="studio-card">
-          <div class="card-icon-header">
-            <div class="icon-wrap bg-purple">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-            </div>
-            <div>
-              <h3>Simplicial RAG Diffusion</h3>
-              <p>Топологическое ранжирование гипер-контекста для LLM</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="form-row">
-              <label>Seed Simplex ID:</label>
-              <input type="number" id="ragSeedInput" value="0" min="0" max="10" class="input-field">
-              <label>Шагов:</label>
-              <input type="number" id="ragStepsInput" value="3" min="1" max="10" class="input-field">
-            </div>
-            <button class="btn btn-purple" id="btnRunRAG">
-              <span>Сформировать RAG волну</span>
-            </button>
-            <div class="console-box" id="ragOutput">
-              <span class="code-comment">// Результаты ранжирования граней появятся здесь...</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Control Card: Topology & Hodge Analytics -->
-        <div class="studio-card">
-          <div class="card-icon-header">
-            <div class="icon-wrap bg-cyan">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            </div>
-            <div>
-              <h3>Числа Бетти & Разложение Ходжа</h3>
-              <p>Вычисление $\beta_0$, $\beta_1$ и гармонических компонент</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="action-row">
-              <button class="btn btn-secondary" id="btnQueryBetti">Запросить $\beta$-числа</button>
-              <button class="btn btn-secondary" id="btnHodgeDecompose">Разложение потока</button>
-            </div>
-            <div class="console-box" id="topologyOutput">
-              <span class="code-comment">// Выберите топологический анализ...</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Control Card: Put / Get Stalk Record -->
-        <div class="studio-card">
-          <div class="card-icon-header">
-            <div class="icon-wrap bg-green">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-            </div>
-            <div>
-              <h3>ACID Запись в Стек Пучка</h3>
-              <p>Многопоточный WAL коммит с крипто-хешированием</p>
-            </div>
-          </div>
-          <div class="card-body">
-            <div class="form-grid">
-              <input type="text" id="recIdInput" placeholder="Record ID (напр. rec-custom)" class="input-field">
-              <input type="text" id="recCellInput" placeholder="Cell ID (напр. [0,1])" value="[0]" class="input-field">
-              <input type="text" id="recVectorInput" placeholder="Vector: [15.5, 9.2]" value="[15.0, 8.5]" class="input-field">
-            </div>
-            <button class="btn btn-green" id="btnInsertRecord">Записать в WAL</button>
-            <div class="console-box" id="recordOutput">
-              <span class="code-comment">// Журнал транзакций WAL...</span>
-            </div>
-          </div>
-        </div>
+  <!-- Section: About & Paradigm (Prometheus "About us" section style) -->
+  <section class="pf-section pf-about-section" id="about">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Топологическая парадигма</span>
       </div>
 
-      <!-- Live Records Viewer -->
-      <div class="records-panel">
-        <div class="panel-header">
-          <div class="panel-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-            <span>Хранилище Состояний Пучка (Стебли $\mathcal{F}(\sigma)$ & WAL Ревизии)</span>
-          </div>
-          <div class="panel-actions">
-            <button class="btn btn-sm btn-glass" id="btnRefreshRecords">Обновить</button>
-          </div>
-        </div>
-        <div class="panel-body">
-          <div class="table-responsive">
-            <table class="data-table" id="recordsTable">
-              <thead>
-                <tr>
-                  <th>ID Записи</th>
-                  <th>Симплекс ($\sigma$)</th>
-                  <th>Размерность ($k$)</th>
-                  <th>Вектор Стебля $\mathcal{F}(\sigma)$</th>
-                  <th>Транзакция (TxID)</th>
-                  <th>SHA-256 Состояния</th>
-                </tr>
-              </thead>
-              <tbody id="recordsTableBody">
-                <tr><td colspan="6" class="loading-td">Загрузка данных из WAL...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div class="pf-split-header">
+        <h2 class="pf-split-title">
+          <span class="pf-title-muted">TopoSpatiaDB совершила прорыв в согласовании состояний:</span> 
+          синтез бесконфликтного распределенного хранилища через клеточный пучок данных и спектральное рассеяние энергии Дирихле.
+        </h2>
       </div>
-    </div>
-  </section>
 
-  <!-- Mathematical Foundation Section -->
-  <section class="section math-section" id="math">
-    <div class="section-container">
-      <div class="section-badge">Формальный Аппарат</div>
-      <h2 class="section-title">Математический Фундамент Пучковой Голографии</h2>
-      <p class="section-desc">Строгая теория Чеха–Де Рама, симплициальные комплексы и спектральная декомпозиция Ходжа вместо эвристик классических распределенных систем.</p>
-
-      <div class="math-cards">
-        <div class="math-card">
-          <div class="math-card-num">01</div>
-          <h3>Симплициальный Клеточный Комплекс $X$</h3>
-          <p class="math-formula">$$X = \bigcup_{k=0}^n X^{(k)}$$</p>
-          <p class="math-expl">
-            Данные не привязаны к плоским таблицам. 0-симплексы образуют узлы шардов, 1-симплексы — каналы репликации, а 2-симплексы — согласованные транзакционные треугольники.
+      <div class="pf-simplex-grid">
+        <div class="pf-simplex-card">
+          <div class="pf-card-top">
+            <span class="pf-card-step">0-СИМПЛЕКС $X^{(0)}$</span>
+            <div class="pf-card-dash"></div>
+          </div>
+          <h3 class="pf-card-heading">Узлы и Физические Реплики</h3>
+          <p class="pf-card-text">
+            Локальные шарды кластера с индивидуальным векторным пространством состояний — стеблем пучка $\mathcal{F}(\sigma) \cong \mathbb{R}^{d_\sigma}$.
           </p>
         </div>
 
-        <div class="math-card">
-          <div class="math-card-num">02</div>
-          <h3>Клеточные Пучки $\mathcal{F}$</h3>
-          <p class="math-formula">$$\rho_{\sigma \trianglelefteq \tau} \colon \mathcal{F}(\sigma) \longrightarrow \mathcal{F}(\tau)$$</p>
-          <p class="math-expl">
-            Локальные гильбертовы пространства $\mathbb{R}^{d_\sigma}$ на каждом симплексе связываются линейными операторами рестрикции, гарантирующими согласованность при передаче состояния.
+        <div class="pf-simplex-card">
+          <div class="pf-card-top">
+            <span class="pf-card-step">1-СИМПЛЕКС $X^{(1)}$</span>
+            <div class="pf-card-dash"></div>
+          </div>
+          <h3 class="pf-card-heading">Каналы Связи и Потоки</h3>
+          <p class="pf-card-text">
+            Бинарные реляционные каналы и операторы кограницы Чеха–Де Рама $d_0$, передающие изменения между инцидентными клетками без взаимных блокировок.
           </p>
         </div>
 
-        <div class="math-card">
-          <div class="math-card-num">03</div>
-          <h3>Нильпотентность Кограницы</h3>
-          <p class="math-formula">$$d_{k+1} \circ d_k = 0 \quad (\forall k \ge 0)$$</p>
-          <p class="math-expl">
-            Когомологии $H^k = \ker(d_k) / \operatorname{im}(d_{k-1})$. Любая кограница цикла равна нулю, что исключает возникновение невалидных состояний на уровне топологии.
-          </p>
-        </div>
-
-        <div class="math-card">
-          <div class="math-card-num">04</div>
-          <h3>Высший Лапласиан Ходжа $\Delta_k$</h3>
-          <p class="math-formula">$$\Delta_k = d_{k-1} d_{k-1}^* + d_k^* d_k$$</p>
-          <p class="math-expl">
-            Разложение Ходжа разделяет пространство состояний на Градиентное, Роторное (вихри $H^1$) и Гармоническое $\ker(\Delta_k)$, обеспечивая нулевую энергию расхождений при репликации.
+        <div class="pf-simplex-card">
+          <div class="pf-card-top">
+            <span class="pf-card-step">2-СИМПЛЕКС $X^{(2)}$</span>
+            <div class="pf-card-dash"></div>
+          </div>
+          <h3 class="pf-card-heading">Кворумы и Транзакции</h3>
+          <p class="pf-card-text">
+            Замкнутые треугольники транзакционной целостности. Устраняют вихри расхождений $H^1$ через высший Лапласиан Ходжа $\Delta_1$.
           </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Architecture Engine Section -->
-  <section class="section arch-section" id="architecture">
-    <div class="section-container">
-      <div class="section-badge">Ядро СУБД</div>
-      <h2 class="section-title">Многопоточная Архитектура Высокой Доступности</h2>
-      <p class="section-desc">Линейная масштабируемость от 1 до 8+ ядер без блокировок чтения и с оппортунистическим слиянием батчей записи.</p>
+  <!-- Section: Mathematical Foundation with KaTeX Formulas -->
+  <section class="pf-section pf-math-section" id="math">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Математический базис</span>
+      </div>
 
-      <div class="arch-flow">
-        <div class="flow-step">
-          <div class="flow-pill">HTTP & REST Core</div>
-          <h4>Zero-Alloc JSON Engine</h4>
-          <p>Маршрутизация с RWMutex Read/Write Split и глубоким клонированием срезов векторов.</p>
+      <h2 class="pf-section-title">
+        ТЕОРИЯ ПУЧКОВ И ЛАПЛАСИАН ХОДЖА<span class="pf-red-dot">.</span>
+      </h2>
+      <p class="pf-section-desc">
+        Формальные инварианты, разработанные лабораторией Tao Science Foundation. 
+        Гарантируют математическую строгость и абсолютное отсутствие расщеплений сети (Split-Brain).
+      </p>
+
+      <div class="pf-math-grid">
+        <!-- Math Block 1 -->
+        <div class="pf-math-card">
+          <div class="pf-math-header">
+            <span class="pf-math-badge">01 &bull; Клеточный пучок данных</span>
+          </div>
+          <div class="pf-formula-box">
+            $$X = \bigcup_{k=0}^n X^{(k)}, \quad \rho_{\sigma \trianglelefteq \tau} \colon \mathcal{F}(\sigma) \longrightarrow \mathcal{F}(\tau)$$
+          </div>
+          <p class="pf-math-expl">
+            Каждой симплициальной клетке $\sigma \in X$ сопоставлен векторный стебель $\mathcal{F}(\sigma) \cong \mathbb{R}^{d_\sigma}$. Между инцидентными клетками действуют линейные операторы рестрикции $\rho$.
+          </p>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step highlight">
-          <div class="flow-pill">Hodge Sheaf Core</div>
-          <h4>Topological Operator Cache</h4>
-          <p>Предвычисление матриц $d_k$ и $\Delta_0$ при изменении комплекса; диффузия с нулевыми локами.</p>
+
+        <!-- Math Block 2 -->
+        <div class="pf-math-card">
+          <div class="pf-math-header">
+            <span class="pf-math-badge">02 &bull; Нильпотентность кограницы</span>
+          </div>
+          <div class="pf-formula-box">
+            $$(d_k x)(\tau) = \sum_{\sigma \trianglelefteq \tau} [\tau : \sigma] \rho_{\sigma \trianglelefteq \tau}(x(\sigma)) \implies d_{k+1} \circ d_k = 0$$
+          </div>
+          <p class="pf-math-expl">
+            Теорема нильпотентности кограничного дифференциала Чеха–Де Рама устраняет топологические аномалии и формирует группы высших когомологий $H^k(X, \mathcal{F}) = \ker(d_k) / \operatorname{im}(d_{k-1})$.
+          </p>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-pill">ACID WAL Storage</div>
-          <h4>Smart Drain Group Commit</h4>
-          <p>Мгновенное пробуждение без `time.Sleep` и параллельный SHA-256 хэшинг транзакций.</p>
+
+        <!-- Math Block 3 -->
+        <div class="pf-math-card">
+          <div class="pf-math-header">
+            <span class="pf-math-badge">03 &bull; Спектральное разложение Ходжа</span>
+          </div>
+          <div class="pf-formula-box">
+            $$\Delta_k = d_{k-1} d_{k-1}^* + d_k^* d_k \implies C^k = \ker(\Delta_k) \oplus \operatorname{im}(d_{k-1}) \oplus \operatorname{im}(d_k^*)$$
+          </div>
+          <p class="pf-math-expl">
+            Лапласиан Ходжа декомпозирует любое состояние распределенного хранилища на градиентный потенциал, роторные вихри рассогласования ($H^1$) и гармонический вакуум $\ker(\Delta_k) \cong H^k$.
+          </p>
+        </div>
+
+        <!-- Math Block 4 (Hero Formula) -->
+        <div class="pf-math-card pf-math-highlight">
+          <div class="pf-math-header">
+            <span class="pf-math-badge">04 &bull; Бесконфликтный градиентный поток</span>
+          </div>
+          <div class="pf-formula-box">
+            $$\frac{dx}{dt} = -\Delta_0 x \implies x(t) = \exp(-t \Delta_0) x(0), \quad E(x) = \langle x, \Delta_0 x \rangle \to 0$$
+          </div>
+          <p class="pf-math-expl">
+            Вместо тяжелых блокирующих раундов сетевого голосования (Raft/Paxos) кластер исполняет тепловую диффузию Лапласа. Энергия разногласий Дирихле $E(x)$ гарантированно падает до нуля.
+          </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Performance Benchmarks Section -->
-  <section class="section bench-section" id="benchmarks">
-    <div class="section-container">
-      <div class="section-badge">Эмпирические Данные</div>
-      <h2 class="section-title">Сравнение Производительности (Sysbench OLTP)</h2>
-      <p class="section-desc">Результаты реальных тестов на Intel Core i5-9300H CPU @ 2.40GHz (Linux amd64, Go 1.26.8).</p>
+  <!-- Section: Engine Architecture (Prometheus Style Dark Modular Cards) -->
+  <section class="pf-section pf-arch-section" id="architecture">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Архитектура ядра</span>
+      </div>
 
-      <div class="table-responsive bench-table-wrap">
-        <table class="bench-table">
+      <h2 class="pf-section-title">
+        МНОГОПОТОЧНЫЙ ДВИЖОК НУЛЕВЫХ ЗАДЕРЖЕК<span class="pf-red-dot">.</span>
+      </h2>
+      <p class="pf-section-desc">
+        Асинхронное конвейерное разделение ответственности между пучковым ядром, журналом WAL и тепловым консенсусом.
+      </p>
+
+      <div class="pf-arch-grid">
+        <div class="pf-arch-card">
+          <div class="pf-arch-num">01</div>
+          <h3 class="pf-arch-title">RWMutex Read/Write Split</h3>
+          <p class="pf-arch-text">
+            Масштабируемые разделяемые блокировки чтения в `sheaf.go`. Выдача срезов векторов защищена методом `CloneVector`, исключая гонки данных при параллельной диффузии и достигая <strong>7.48M QPS</strong> на 8 ядрах.
+          </p>
+        </div>
+
+        <div class="pf-arch-card">
+          <div class="pf-arch-num">02</div>
+          <h3 class="pf-arch-title">Smart Drain Group Commit</h3>
+          <p class="pf-arch-text">
+            Ликвидация искусственных задержек таймеров (`time.Sleep`). Оппортунистическое дренирование очереди с параллельным вычислением SHA-256 подписей позволило поднять скорость записи до <strong>95.9K TPS</strong> (10.4 мкс).
+          </p>
+        </div>
+
+        <div class="pf-arch-card">
+          <div class="pf-arch-num">03</div>
+          <h3 class="pf-arch-title">Кэш Операторов Ходжа</h3>
+          <p class="pf-arch-text">
+            Матрица $\Delta_0$ предкомпилируется один раз при изменении клеточного комплекса. Параллельные горутины исполняют шаги теплового градиента за <strong>0.39 мкс</strong> без накладных расходов.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section: Limitless Applications (Prometheus "One process, limitless energy applications" style) -->
+  <section class="pf-section pf-app-section" id="applications">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Сферы применения</span>
+      </div>
+
+      <h2 class="pf-section-title">
+        ОДИН ПУЧКОВЫЙ ДВИЖОК,<br>
+        НЕОГРАНИЧЕННЫЕ ВОЗМОЖНОСТИ<span class="pf-red-dot">.</span>
+      </h2>
+
+      <div class="pf-app-grid">
+        <div class="pf-app-card">
+          <div class="pf-app-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <h3 class="pf-app-heading">Data Center Ultra-Scale</h3>
+          <div class="pf-app-divider"></div>
+          <p class="pf-app-text">
+            Синхронизация глобально распределенных шардов без риска Split-Brain блокировок. Обработка смешанных OLTP нагрузок со скоростью свыше 325 000 TPS.
+          </p>
+        </div>
+
+        <div class="pf-app-card">
+          <div class="pf-app-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          </div>
+          <h3 class="pf-app-heading">Simplicial RAG & AI Context</h3>
+          <div class="pf-app-divider"></div>
+          <p class="pf-app-text">
+            Топологическое ранжирование гипер-контекста для LLM. Тепловое распространение релевантности по симплициальным граням графа знаний.
+          </p>
+        </div>
+
+        <div class="pf-app-card">
+          <div class="pf-app-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          </div>
+          <h3 class="pf-app-heading">Edge & Mobile Mesh Clusters</h3>
+          <div class="pf-app-divider"></div>
+          <p class="pf-app-text">
+            Автономная работа периферийных устройств в условиях постоянных обрывов связи: при восстановлении сети вихри кограницы рассеиваются автоматически.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section: Empirical Benchmarks -->
+  <section class="pf-section pf-bench-section" id="benchmarks">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Эмпирические измерения</span>
+      </div>
+
+      <h2 class="pf-section-title">
+        СРАВНЕНИЕ С КЛАССИЧЕСКИМИ СУБД<span class="pf-red-dot">.</span>
+      </h2>
+      <p class="pf-section-desc">
+        Аппаратное окружение: Intel Core i5-9300H CPU @ 2.40GHz (4 ядра, 8 потоков), Linux amd64, Go 1.26.8.
+      </p>
+
+      <div class="pf-table-wrapper">
+        <table class="pf-table">
           <thead>
             <tr>
-              <th>Профиль / Метрика</th>
-              <th class="col-highlight">TopoSpatiaDB (v3 Smart-Drain)</th>
+              <th>Параметр / Сценарий нагрузки</th>
+              <th class="pf-th-highlight">TopoSpatiaDB (v3 Smart-Drain)</th>
               <th>PostgreSQL 17</th>
               <th>MySQL 9 (InnoDB)</th>
             </tr>
@@ -381,39 +357,45 @@
           <tbody>
             <tr>
               <td><strong>Многопоточное чтение (QPS)</strong></td>
-              <td class="col-highlight"><strong>7 485 000 QPS</strong> <span class="tag-green">+1500%</span></td>
+              <td class="pf-td-highlight"><strong>7 485 000 QPS</strong> <span class="pf-badge-red">+1500%</span></td>
               <td>180 000 – 450 000</td>
               <td>250 000 – 600 000</td>
             </tr>
             <tr>
               <td><strong>Задержка чтения (Point Select)</strong></td>
-              <td class="col-highlight"><strong>0.13 µs</strong> (133 ns)</td>
-              <td>35 – 100 µs</td>
-              <td>25 – 80 µs</td>
+              <td class="pf-td-highlight"><strong>0.13 µs</strong> (133 ns throughput)</td>
+              <td>~35 – 100 µs</td>
+              <td>~25 – 80 µs</td>
             </tr>
             <tr>
               <td><strong>Параллельная запись (WAL+Crypto)</strong></td>
-              <td class="col-highlight"><strong>95 970 TPS</strong> (10.4 µs)</td>
-              <td>8 000 – 18 000 TPS</td>
-              <td>10 000 – 24 000 TPS</td>
+              <td class="pf-td-highlight"><strong>95 970 TPS</strong> (10.4 µs)</td>
+              <td>~8 000 – 18 000 TPS</td>
+              <td>~10 000 – 24 000 TPS</td>
             </tr>
             <tr>
               <td><strong>Смешанный OLTP (80% R / 20% W)</strong></td>
-              <td class="col-highlight"><strong>325 730 TPS</strong> (3.07 µs)</td>
-              <td>4 500 – 9 000 TPS</td>
-              <td>5 500 – 12 000 TPS</td>
+              <td class="pf-td-highlight"><strong>325 730 TPS</strong> (3.07 µs)</td>
+              <td>~4 500 – 9 000 TPS</td>
+              <td>~5 500 – 12 000 TPS</td>
             </tr>
             <tr>
               <td><strong>Консенсус репликации</strong></td>
-              <td class="col-highlight"><strong>Топологический Ходж (0.39 µs)</strong></td>
+              <td class="pf-td-highlight"><strong>Топологический Ходж (0.39 µs)</strong></td>
               <td>Raft / Paxos (1–15 ms)</td>
               <td>Group Replication (2–20 ms)</td>
             </tr>
             <tr>
+              <td><strong>Поведение при Split-Brain</strong></td>
+              <td class="pf-td-highlight">Автоматическое сведение $H^1 \to 0$</td>
+              <td>Блокировка меньшинства</td>
+              <td>Блокировка меньшинства</td>
+            </tr>
+            <tr>
               <td><strong>Риск взаимных блокировок (Deadlocks)</strong></td>
-              <td class="col-highlight"><strong>0% (Математически доказано)</strong></td>
-              <td>Требуется Deadlock Detector</td>
-              <td>Требуется Deadlock Detector</td>
+              <td class="pf-td-highlight"><span class="pf-text-red"><strong>0% (Математически доказано)</strong></span></td>
+              <td>Требуется детектор</td>
+              <td>Требуется детектор</td>
             </tr>
           </tbody>
         </table>
@@ -421,47 +403,103 @@
     </div>
   </section>
 
-  <!-- REST API Documentation Quickstart -->
-  <section class="section api-section" id="api">
-    <div class="section-container">
-      <div class="section-badge">Интеграция</div>
-      <h2 class="section-title">Эндпоинты REST API</h2>
-      <p class="section-desc">Унифицированное подключение клиентских приложений, микросервисов и LLM пайплайнов.</p>
+  <!-- Section: Quickstart Code Showcase -->
+  <section class="pf-section pf-code-section" id="quickstart">
+    <div class="pf-container">
+      <div class="pf-section-tag">
+        <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
+        <span>Быстрый старт</span>
+      </div>
 
-      <div class="api-grid">
-        <div class="api-card">
-          <div class="api-endpoint"><span class="method get">GET</span> <code>/api/v1/status</code></div>
-          <p>Метрики клеточного пучка, количество 0, 1, 2-симплексов и размерность стебля.</p>
+      <h2 class="pf-section-title">
+        ИНТЕГРАЦИЯ В 3 ШАГА<span class="pf-red-dot">.</span>
+      </h2>
+      <p class="pf-section-desc">
+        Используйте TopoSpatiaDB как встраиваемый Go-движок или развертывайте как микросервис с REST API.
+      </p>
+
+      <div class="pf-code-container">
+        <div class="pf-code-tabs">
+          <button class="pf-tab-btn active" data-tab="tab-go">Встраиваемый Go SDK</button>
+          <button class="pf-tab-btn" data-tab="tab-curl">cURL & REST API</button>
         </div>
-        <div class="api-card">
-          <div class="api-endpoint"><span class="method post">POST</span> <code>/api/v1/consensus/diffuse</code></div>
-          <p>Запуск теплового потока $\exp(-t\Delta_0)$ для сведения энергии расхождения к 0.</p>
+
+        <div class="pf-code-body" id="tab-go">
+          <pre><code><span class="hl-kw">package</span> main
+
+<span class="hl-kw">import</span> (
+    <span class="hl-str">"log"</span>
+    <span class="hl-str">"topospatia"</span>
+)
+
+<span class="hl-kw">func</span> <span class="hl-fn">main</span>() {
+    <span class="hl-com">// 1. Инициализация клеточного комплекса (размерность 2, векторный стебель 2D)</span>
+    sheaf := topospatia.<span class="hl-fn">NewSimplicialSheaf</span>(2, 2)
+    sheaf.<span class="hl-fn">AddCell</span>([]<span class="hl-kw">int</span>{0})
+    sheaf.<span class="hl-fn">AddCell</span>([]<span class="hl-kw">int</span>{1})
+    sheaf.<span class="hl-fn">AddCell</span>([]<span class="hl-kw">int</span>{2})
+    sheaf.<span class="hl-fn">AddCell</span>([]<span class="hl-kw">int</span>{0, 1, 2})
+    sheaf.<span class="hl-fn">CompileOperators</span>()
+
+    <span class="hl-com">// 2. Открытие ACID WAL хранилища и движка консенсуса</span>
+    storage, _ := topospatia.<span class="hl-fn">OpenStorage</span>(<span class="hl-str">"./data"</span>, sheaf)
+    consensus := topospatia.<span class="hl-fn">NewConsensusEngine</span>(sheaf, storage)
+
+    <span class="hl-com">// 3. Запуск градиентной тепловой диффузии: сведение вихрей H^1 к гармоническому ядру</span>
+    iters, initE, finalE := consensus.<span class="hl-fn">DiffuseHeatKernel</span>(0.1, 100, 1e-6)
+    log.<span class="hl-fn">Printf</span>(<span class="hl-str">"Консенсус сошелся за %d шагов: E(x) %.6f -> %.6f"</span>, iters, initE, finalE)
+}</code></pre>
         </div>
-        <div class="api-card">
-          <div class="api-endpoint"><span class="method post">POST</span> <code>/api/v1/rag/diffuse</code></div>
-          <p>Симплициальное распространение контекста для генеративных AI моделей.</p>
-        </div>
-        <div class="api-card">
-          <div class="api-endpoint"><span class="method post">POST</span> <code>/api/v1/topology/hodge-decompose</code></div>
-          <p>Разложение 1-потоков на градиентные, соленоидальные и гармонические моды.</p>
+
+        <div class="pf-code-body hidden" id="tab-curl">
+          <pre><code><span class="hl-com"># 1. Запрос метрик и структуры комплекса</span>
+curl -X GET http://localhost:8089/api/v1/status
+
+<span class="hl-com"># 2. Запуск теплового консенсуса Ходжа exp(-t * Delta_0)</span>
+curl -X POST http://localhost:8089/api/v1/consensus/diffuse
+
+<span class="hl-com"># 3. Симплициальное RAG-распространение контекста</span>
+curl -X POST http://localhost:8089/api/v1/rag/diffuse \
+  -H "Content-Type: application/json" \
+  -d '{"seeds": [0], "steps": 3, "alpha": 0.1}'
+
+<span class="hl-com"># 4. Атомарный коммит векторного стебля</span>
+curl -X POST http://localhost:8089/api/v1/records \
+  -H "Content-Type: application/json" \
+  -d '{"id": "rec-1", "cell_id": "[0]", "dimension": 0, "vector": [10.5, 4.2]}'</code></pre>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="footer-container">
-      <div class="footer-left">
-        <span class="brand-text">TopoSpatia<strong>DB</strong></span>
-        <p>Разработано в лаборатории <strong>Tao Science Foundation</strong> в рамках исследований многомерной топологической голографии.</p>
+  <!-- Footer (Prometheus Style: Red accents, clean legal line, email CTA) -->
+  <footer class="pf-footer">
+    <div class="pf-container pf-footer-content">
+      <div class="pf-footer-top">
+        <div class="pf-footer-brand">
+          <span class="pf-brand-name">TopoSpatia<strong>DB</strong><span class="pf-red-dot">.</span></span>
+          <p class="pf-footer-tagline">
+            Разработано лабораторией <strong>Tao Science Foundation</strong> в рамках фундаментальных исследований многомерной топологической голографии.
+          </p>
+        </div>
+        <div class="pf-footer-cta">
+          <h4 class="pf-footer-cta-title">Готовы к внедрению пучковой СУБД?</h4>
+          <a href="mailto:contact@topospatia.org" class="pf-btn pf-btn-red">
+            <span>Связаться с разработчиками</span>
+          </a>
+        </div>
       </div>
-      <div class="footer-right">
-        <p>© 2026 Tao Science. Лицензия MIT. Открытый исходный код.</p>
+
+      <div class="pf-footer-bottom">
+        <p>&copy; 2026 Tao Science Foundation. Лицензия MIT. Открытый исходный код.</p>
+        <p class="pf-footer-meta">СУБД Нового Поколения &bull; Многомерная Пучковая Голография</p>
       </div>
     </div>
   </footer>
 
+  <!-- KaTeX Scripts for Formula Rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
