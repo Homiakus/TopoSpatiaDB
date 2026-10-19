@@ -98,49 +98,51 @@ body.pf-body {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 0;
-  opacity: 0.85;
+  z-index: 1; /* Above raw background atmosphere, seamlessly behind text cards */
+  opacity: 0.95;
   transition: opacity 0.3s ease;
 }
 
-/* 4D Tesseract Styling */
+/* 4D Tesseract Styling — High Contrast Aerospace Lines */
 .pf-tesseract-face {
-  fill: rgba(223, 26, 37, 0.04);
-  stroke: rgba(223, 26, 37, 0.20);
-  stroke-width: 0.8;
+  fill: rgba(223, 26, 37, 0.06);
+  stroke: rgba(223, 26, 37, 0.35);
+  stroke-width: 1.0;
   transition: fill 0.25s ease, stroke 0.25s ease;
 }
 
 .pf-tesseract-edge {
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 1.4;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
   transition: stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
 .pf-tesseract-edge.connecting {
-  stroke: var(--pf-red);
-  stroke-width: 1.6;
-  opacity: 0.85;
+  stroke: #FF2B36;
+  stroke-width: 2.2;
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(223, 26, 37, 0.85));
 }
 
 .pf-tesseract-edge.inner {
-  stroke: rgba(223, 26, 37, 0.4);
-  stroke-width: 1.0;
-  stroke-dasharray: 3 3;
+  stroke: rgba(223, 26, 37, 0.65);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 4;
 }
 
 .pf-tesseract-node {
   fill: #FFFFFF;
   stroke: var(--pf-red);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 0 4px rgba(223, 26, 37, 0.6));
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(223, 26, 37, 0.9));
 }
 
 .pf-tesseract-node.highlight {
-  fill: var(--pf-red);
+  fill: #FF2B36;
   stroke: #FFFFFF;
-  stroke-width: 2;
-  filter: drop-shadow(0 0 8px rgba(223, 26, 37, 0.9));
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 12px rgba(255, 43, 54, 1));
 }
 
 /* Tesseract SVG HUD Panel */

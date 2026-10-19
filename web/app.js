@@ -134,10 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
   }
 
-  // 6. Native Passive Scroll Progress Indicator & 3-Cube Topological Unfolding
-  const scrollIndicator = document.getElementById('pfScrollIndicator');
-  const cubeSvg = document.getElementById('pfCubeNetSvg');
-
   // 6. Hypercube (Tesseract 4D) Multi-Projection Engine with Scroll and Interactive Rotation
   const scrollIndicator = document.getElementById('pfScrollIndicator');
   const cubeSvg = document.getElementById('pfCubeNetSvg');
@@ -222,9 +218,10 @@ document.addEventListener('DOMContentLoaded', () => {
     cubeSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
     const isMobile = width < 768;
-    const cx = isMobile ? width * 0.5 : width * 0.74;
-    const cy = isMobile ? height * 0.48 : height * 0.50;
-    const baseScale = Math.min(width, height) * (isMobile ? 0.22 : 0.24);
+    // Dynamic Hypercube as the living mathematical background of the whole page
+    const cx = width * 0.5;
+    const cy = height * 0.5;
+    const baseScale = Math.min(width, height) * (isMobile ? 0.28 : 0.32);
 
     // Continuous 4D rotation angles driven by scroll and parametric phase
     // As the user scrolls, the hypercube traverses different 4D projection planes (XW, YW, ZW, XY, YZ)
@@ -349,16 +346,19 @@ document.addEventListener('DOMContentLoaded', () => {
       svgHtml += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${radius.toFixed(1)}" class="pf-tesseract-node ${isOuter ? 'highlight' : ''}"/>`;
     }
 
-    // HUD Status Box rendered directly in SVG: displays active projection, angle & dimension stats
-    const hudX = isMobile ? 24 : Math.max(24, cx - baseScale * 1.5);
-    const hudY = cy + baseScale * 1.35;
+    // HUD Status Box rendered directly in SVG: cleanly anchored to bottom-right of viewport
+    const hudWidth = isMobile ? Math.min(260, width - 48) : 280;
+    const hudHeight = 60;
+    const hudX = isMobile ? 24 : (width - hudWidth - 32);
+    const hudY = height - hudHeight - 28;
+
     svgHtml += `
       <g class="pf-tesseract-hud">
-        <rect x="${hudX.toFixed(1)}" y="${hudY.toFixed(1)}" width="280" height="64" class="pf-hud-panel" />
-        <line x1="${hudX.toFixed(1)}" y1="${hudY.toFixed(1)}" x2="${(hudX + 280).toFixed(1)}" y2="${hudY.toFixed(1)}" stroke="#DF1A25" stroke-width="2" />
-        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 22).toFixed(1)}" class="pf-hud-tag">4D PROJECTION &bull; TESSERACT [X,Y,Z,W]</text>
-        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 40).toFixed(1)}" class="pf-hud-title">${activeMode.name}</text>
-        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 54).toFixed(1)}" class="pf-hud-desc">${activeMode.desc}</text>
+        <rect x="${hudX.toFixed(1)}" y="${hudY.toFixed(1)}" width="${hudWidth}" height="${hudHeight}" class="pf-hud-panel" />
+        <line x1="${hudX.toFixed(1)}" y1="${hudY.toFixed(1)}" x2="${(hudX + hudWidth).toFixed(1)}" y2="${hudY.toFixed(1)}" stroke="#DF1A25" stroke-width="2" />
+        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 18).toFixed(1)}" class="pf-hud-tag">4D PROJECTION &bull; TESSERACT [X,Y,Z,W]</text>
+        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 36).toFixed(1)}" class="pf-hud-title">${activeMode.name}</text>
+        <text x="${(hudX + 14).toFixed(1)}" y="${(hudY + 50).toFixed(1)}" class="pf-hud-desc">${activeMode.desc}</text>
       </g>
     `;
 
