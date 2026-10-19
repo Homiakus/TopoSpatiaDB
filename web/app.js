@@ -1,7 +1,6 @@
 // TopoSpatiaDB — High Performance Responsive Engine: Ultra-Crisp Lenis & Hardware-Accelerated GSAP
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Render all LaTeX formulas automatically using KaTeX
+function initKaTeX() {
   if (typeof renderMathInElement === 'function') {
     renderMathInElement(document.body, {
       delimiters: [
@@ -13,7 +12,25 @@ document.addEventListener('DOMContentLoaded', () => {
       throwOnError: false,
       ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
     });
+    return true;
   }
+  return false;
+}
+
+// Attempt immediate render, and poll briefly if defer is still loading CDN scripts
+if (!initKaTeX()) {
+  let katexAttempts = 0;
+  const katexInterval = setInterval(() => {
+    katexAttempts++;
+    if (initKaTeX() || katexAttempts > 30) {
+      clearInterval(katexInterval);
+    }
+  }, 100);
+}
+window.addEventListener('load', initKaTeX);
+
+document.addEventListener('DOMContentLoaded', () => {
+  initKaTeX();
 
   // 2. High-Performance, Instant-Response Lenis Setup
   let lenis;
