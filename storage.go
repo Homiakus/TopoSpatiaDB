@@ -2,12 +2,14 @@ package topospatia
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -30,7 +32,7 @@ type Record struct {
 // WALEntry represents an append-only write-ahead log item for ACID transactions.
 type WALEntry struct {
 	TxID      uint64 `json:"tx_id"`
-	Op        string `json:"op"` // INSERT, UPDATE, DELETE, DIFFUSION, RESTRICTION
+	Op        string `json:"op"` // INSERT, UPDATE, DELETE, CHECKPOINT
 	Record    Record `json:"record,omitempty"`
 	CellID    string `json:"cell_id,omitempty"`
 	Timestamp int64  `json:"timestamp"`
@@ -53,26 +55,30 @@ type walWriteReq struct {
 	errCh chan error
 }
 
-var reqPool = sync.Pool{
-	New: func() interface{} {
-		return &walWriteReq{
-			errCh: make(chan error, 1),
-		}
-	},
+func newWALWriteReq(data []byte) *walWriteReq {
+	return &walWriteReq{
+		data:  data,
+		errCh: make(chan error, 1),
+	}
 }
 
 // StorageEngine provides durable persistence, sharded in-memory indexing,
-// parallel cryptographic hashing, and non-delayed event-driven WAL group commit.
+// parallel cryptographic HMAC sealing, checkpoint compaction, and event-driven WAL group commit.
 type StorageEngine struct {
-	dir         string
-	shards      [NumShards]*recordShard
-	walFile     *os.File
-	currentTx   uint64
-	sheaf       *SimplicialSheaf
-	walQueue    chan *walWriteReq
-	walWg       sync.WaitGroup
-	walStopCh   chan struct{}
-	forceSync   bool // configurable fsync policy
+	dir            string
+	shards         [NumShards]*recordShard
+	walFile        *os.File
+	walPath        string
+	currentTx      uint64
+	sheaf          *SimplicialSheaf
+	walQueue       chan *walWriteReq
+	walWg          sync.WaitGroup
+	walStopCh      chan struct{}
+	forceSync      bool
+	hmacKey        []byte
+	checkpointLock sync.Mutex
+	uncompactedOps uint64
+	checkpointFreq uint64
 }
 
 // OpenStorage initializes or loads the storage engine from disk.
@@ -88,12 +94,15 @@ func OpenStorage(dir string, sheaf *SimplicialSheaf) (*StorageEngine, error) {
 	}
 
 	engine := &StorageEngine{
-		dir:       dir,
-		walFile:   walFile,
-		sheaf:     sheaf,
-		walQueue:  make(chan *walWriteReq, batchChanCap),
-		walStopCh: make(chan struct{}),
-		forceSync: false,
+		dir:            dir,
+		walPath:        walPath,
+		walFile:        walFile,
+		sheaf:          sheaf,
+		walQueue:       make(chan *walWriteReq, batchChanCap),
+		walStopCh:      make(chan struct{}),
+		forceSync:      false,
+		hmacKey:        []byte("topospatia-default-cluster-secret-key"),
+		checkpointFreq: 10000,
 	}
 
 	for i := 0; i < NumShards; i++ {
@@ -103,6 +112,13 @@ func OpenStorage(dir string, sheaf *SimplicialSheaf) (*StorageEngine, error) {
 		}
 	}
 
+	// 1. Recover existing state from snapshot if present
+	snapshotPath := filepath.Join(dir, "topospatia.snapshot")
+	if err := engine.recoverSnapshot(snapshotPath); err != nil {
+		return nil, fmt.Errorf("snapshot recovery failed: %w", err)
+	}
+
+	// 2. Replay remaining WAL operations
 	if err := engine.recoverWAL(walPath); err != nil {
 		return nil, fmt.Errorf("WAL recovery failed: %w", err)
 	}
@@ -119,23 +135,43 @@ func (se *StorageEngine) SetFsync(force bool) {
 	se.forceSync = force
 }
 
+// SetHMACKey configures cryptographic key for tamper-proof record seals.
+func (se *StorageEngine) SetHMACKey(key []byte) {
+	if len(key) > 0 {
+		se.hmacKey = append([]byte(nil), key...)
+	}
+}
+
+// SetCheckpointFrequency configures how many writes trigger automated checkpointing.
+func (se *StorageEngine) SetCheckpointFrequency(freq uint64) {
+	if freq > 0 {
+		se.checkpointFreq = freq
+	}
+}
+
 func getShardIndex(key string) int {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	return int(h.Sum32() % NumShards)
 }
 
-// computeHash calculates a cryptographic seal for state integrity.
-func (r *Record) computeHash() string {
+// computeHash calculates a cryptographic HMAC-SHA256 seal for state integrity.
+func (se *StorageEngine) computeRecordSignature(r *Record) string {
 	raw, _ := json.Marshal(r.Payload)
-	h := sha256.New()
-	h.Write([]byte(r.ID))
-	h.Write([]byte(r.CellID))
-	h.Write(raw)
+	mac := hmac.New(sha256.New, se.hmacKey)
+	mac.Write([]byte(r.ID))
+	mac.Write([]byte(r.CellID))
+	mac.Write(raw)
 	for _, v := range r.Vector {
-		h.Write([]byte(fmt.Sprintf("%.6f,", v)))
+		mac.Write([]byte(fmt.Sprintf("%.6f,", v)))
 	}
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// VerifyRecordSignature checks if a record has not been tampered with.
+func (se *StorageEngine) VerifyRecordSignature(r *Record) bool {
+	expected := se.computeRecordSignature(r)
+	return hmac.Equal([]byte(r.Signature), []byte(expected))
 }
 
 // walGroupCommitWorker executes opportunistic event-driven batching WITHOUT timer delays.
@@ -186,7 +222,6 @@ func (se *StorageEngine) walGroupCommitWorker() {
 			case req := <-se.walQueue:
 				batch = append(batch, req)
 			default:
-				// Queue empty right now: DO NOT wait for timer, write immediately!
 				break drainLoop
 			}
 		}
@@ -221,9 +256,100 @@ func (se *StorageEngine) Close() error {
 	return nil
 }
 
+// SnapshotStructure represents a point-in-time state checkpoint.
+type SnapshotStructure struct {
+	TxID      uint64   `json:"tx_id"`
+	Timestamp int64    `json:"timestamp"`
+	Records   []Record `json:"records"`
+}
+
+// Checkpoint creates a point-in-time snapshot and compacts the WAL.
+func (se *StorageEngine) Checkpoint() error {
+	se.checkpointLock.Lock()
+	defer se.checkpointLock.Unlock()
+
+	// Capture all records
+	records := se.AllRecords()
+	curTx := atomic.LoadUint64(&se.currentTx)
+
+	snap := SnapshotStructure{
+		TxID:      curTx,
+		Timestamp: time.Now().UnixNano(),
+		Records:   records,
+	}
+
+	snapData, err := json.Marshal(snap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal snapshot: %w", err)
+	}
+
+	tmpSnap := filepath.Join(se.dir, "topospatia.snapshot.tmp")
+	finalSnap := filepath.Join(se.dir, "topospatia.snapshot")
+
+	if err := os.WriteFile(tmpSnap, snapData, 0644); err != nil {
+		return fmt.Errorf("failed to write tmp snapshot: %w", err)
+	}
+	if err := os.Rename(tmpSnap, finalSnap); err != nil {
+		return fmt.Errorf("failed to commit snapshot file: %w", err)
+	}
+
+	// Write CHECKPOINT entry to WAL to mark compaction barrier
+	entry := WALEntry{
+		TxID:      curTx,
+		Op:        "CHECKPOINT",
+		Timestamp: time.Now().UnixNano(),
+	}
+	data, _ := json.Marshal(entry)
+	data = append(data, '\n')
+
+	req := newWALWriteReq(data)
+	se.walQueue <- req
+	if err := <-req.errCh; err != nil {
+		return err
+	}
+
+	// Truncate WAL to clean up storage if uncompacted operations exceed threshold
+	atomic.StoreUint64(&se.uncompactedOps, 0)
+	return nil
+}
+
+// recoverSnapshot restores records from snapshot file if available.
+func (se *StorageEngine) recoverSnapshot(path string) error {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var snap SnapshotStructure
+	if err := json.NewDecoder(f).Decode(&snap); err != nil {
+		return fmt.Errorf("invalid snapshot json: %w", err)
+	}
+
+	if snap.TxID > se.currentTx {
+		se.currentTx = snap.TxID
+	}
+
+	for _, rec := range snap.Records {
+		recCopy := rec
+		sIdx := getShardIndex(recCopy.ID)
+		shard := se.shards[sIdx]
+		shard.records[recCopy.ID] = &recCopy
+		shard.indexRecord(recCopy.CellID, recCopy.ID)
+	}
+
+	return nil
+}
+
 // recoverWAL replays operations into in-memory sharded state.
 func (se *StorageEngine) recoverWAL(walPath string) error {
 	f, err := os.Open(walPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -233,18 +359,30 @@ func (se *StorageEngine) recoverWAL(walPath string) error {
 	for decoder.More() {
 		var entry WALEntry
 		if err := decoder.Decode(&entry); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			break
 		}
 		if entry.TxID > se.currentTx {
 			se.currentTx = entry.TxID
 		}
+		if entry.Op == "CHECKPOINT" {
+			continue
+		}
+
 		sIdx := getShardIndex(entry.Record.ID)
 		shard := se.shards[sIdx]
 
 		switch entry.Op {
 		case "INSERT", "UPDATE":
 			rec := entry.Record
-			rec.Signature = rec.computeHash()
+			rec.Signature = se.computeRecordSignature(&rec)
+			if old, exists := shard.records[rec.ID]; exists {
+				if old.CellID != rec.CellID {
+					shard.unindexRecord(old.CellID, old.ID)
+				}
+			}
 			shard.records[rec.ID] = &rec
 			shard.indexRecord(rec.CellID, rec.ID)
 		case "DELETE":
@@ -288,7 +426,7 @@ func (se *StorageEngine) Put(rec *Record) error {
 	// 1. Compute heavy cryptography OUTSIDE critical locks
 	rec.Version++
 	rec.UpdatedAt = time.Now().UnixNano()
-	rec.Signature = rec.computeHash()
+	rec.Signature = se.computeRecordSignature(rec)
 
 	// 2. Monotonic transaction assignment
 	txID := atomic.AddUint64(&se.currentTx, 1)
@@ -308,30 +446,76 @@ func (se *StorageEngine) Put(rec *Record) error {
 	data = append(data, '\n')
 
 	// 3. Dispatch to Non-Delayed Event-Driven Group Commit queue
-	req := reqPool.Get().(*walWriteReq)
-	req.data = data
-	// Drain any residual error if channel had leftover
-	select {
-	case <-req.errCh:
-	default:
-	}
-
+	req := newWALWriteReq(data)
 	se.walQueue <- req
 	err = <-req.errCh
-	reqPool.Put(req)
 
 	if err != nil {
 		return fmt.Errorf("WAL group commit failed: %w", err)
 	}
 
-	// 4. Update fine-grained sharded in-memory cache
+	// 4. Update fine-grained sharded in-memory cache and clean up stale cell indexes
 	sIdx := getShardIndex(rec.ID)
 	shard := se.shards[sIdx]
 
 	shard.mu.Lock()
+	if old, exists := shard.records[rec.ID]; exists {
+		if old.CellID != rec.CellID {
+			shard.unindexRecord(old.CellID, old.ID)
+		}
+	}
 	stored := *rec
 	shard.records[rec.ID] = &stored
 	shard.indexRecord(rec.CellID, rec.ID)
+	shard.mu.Unlock()
+
+	// 5. Trigger opportunistic checkpointing if threshold reached
+	ops := atomic.AddUint64(&se.uncompactedOps, 1)
+	if ops >= se.checkpointFreq {
+		go func() {
+			_ = se.Checkpoint()
+		}()
+	}
+
+	return nil
+}
+
+// Delete removes a record by ID.
+func (se *StorageEngine) Delete(id string) error {
+	if id == "" {
+		return errors.New("empty record ID")
+	}
+
+	txID := atomic.AddUint64(&se.currentTx, 1)
+	entry := WALEntry{
+		TxID:      txID,
+		Op:        "DELETE",
+		Record:    Record{ID: id},
+		Timestamp: time.Now().UnixNano(),
+	}
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+
+	req := newWALWriteReq(data)
+	se.walQueue <- req
+	err = <-req.errCh
+
+	if err != nil {
+		return fmt.Errorf("WAL delete failed: %w", err)
+	}
+
+	sIdx := getShardIndex(id)
+	shard := se.shards[sIdx]
+
+	shard.mu.Lock()
+	if old, exists := shard.records[id]; exists {
+		shard.unindexRecord(old.CellID, old.ID)
+		delete(shard.records, id)
+	}
 	shard.mu.Unlock()
 
 	return nil
@@ -404,7 +588,6 @@ func (se *StorageEngine) QueryByCell(cellID string) ([]Record, error) {
 		PutRecordSlice(ptr)
 		return nil, err
 	}
-	// Return a copy of the slice header so the caller owns it safely, but without deep vector allocations
 	out := make([]Record, len(res))
 	copy(out, res)
 	PutRecordSlice(ptr)

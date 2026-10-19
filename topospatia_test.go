@@ -273,3 +273,79 @@ func TestEmbeddedDB(t *testing.T) {
 		t.Fatalf("Expected Betti 0 = 2 for connected segment with stalkDim=2, got %d", betti[0])
 	}
 }
+
+func TestStorageIntegrityAndCheckpoint(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "topospatia_storage_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	sheaf := NewSimplicialSheaf(1, 2)
+	v0, _ := sheaf.AddCell([]int{0})
+	v1, _ := sheaf.AddCell([]int{1})
+	sheaf.CompileOperators()
+
+	storage, err := OpenStorage(filepath.Join(tmpDir, "data"), sheaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := &Record{
+		ID:        "rec-audit-1",
+		CellID:    v0.ID,
+		Dimension: 0,
+		Vector:    StalkVector{1.5, 2.5},
+		Payload:   map[string]interface{}{"key": "val1"},
+	}
+	if err := storage.Put(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify HMAC signature
+	if !storage.VerifyRecordSignature(rec) {
+		t.Fatal("HMAC verification failed for valid record")
+	}
+
+	// Tamper detection
+	tampered := *rec
+	tampered.Vector = StalkVector{999.0, 999.0}
+	if storage.VerifyRecordSignature(&tampered) {
+		t.Fatal("Tampered record passed HMAC signature check")
+	}
+
+	// Test index cleanup when CellID changes
+	recUpdated := *rec
+	recUpdated.CellID = v1.ID
+	if err := storage.Put(&recUpdated); err != nil {
+		t.Fatal(err)
+	}
+
+	oldCellRecs, _ := storage.QueryByCell(v0.ID)
+	if len(oldCellRecs) != 0 {
+		t.Fatalf("Expected 0 records in old cell after move, got %d", len(oldCellRecs))
+	}
+	newCellRecs, _ := storage.QueryByCell(v1.ID)
+	if len(newCellRecs) != 1 {
+		t.Fatalf("Expected 1 record in new cell, got %d", len(newCellRecs))
+	}
+
+	// Test Checkpoint snapshot & WAL recovery
+	if err := storage.Checkpoint(); err != nil {
+		t.Fatalf("Checkpoint failed: %v", err)
+	}
+	_ = storage.Close()
+
+	// Reopen storage
+	reopened, err := OpenStorage(filepath.Join(tmpDir, "data"), sheaf)
+	if err != nil {
+		t.Fatalf("Reopen storage failed: %v", err)
+	}
+	defer reopened.Close()
+
+	recovered, err := reopened.Get("rec-audit-1")
+	if err != nil || recovered.CellID != v1.ID {
+		t.Fatalf("Failed to recover record correctly from snapshot: %v", err)
+	}
+}
+

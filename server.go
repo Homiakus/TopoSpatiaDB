@@ -1,8 +1,10 @@
 package topospatia
 
 import (
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -14,22 +16,46 @@ import (
 
 // Server exposes TopoSpatiaDB over HTTP REST & JSON.
 type Server struct {
-	mu        sync.RWMutex
-	sheaf     *SimplicialSheaf
-	storage   *StorageEngine
-	consensus *ConsensusEngine
-	mux       *http.ServeMux
+	mu           sync.RWMutex
+	sheaf        *SimplicialSheaf
+	storage      *StorageEngine
+	consensus    *ConsensusEngine
+	mux          *http.ServeMux
+	authToken    string
+	allowedOrigin string
 }
 
 func NewServer(sheaf *SimplicialSheaf, storage *StorageEngine, consensus *ConsensusEngine) *Server {
+	authToken := os.Getenv("TOPOSPATIA_AUTH_TOKEN")
+	allowedOrigin := os.Getenv("TOPOSPATIA_CORS_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "*"
+	}
+
 	s := &Server{
-		sheaf:     sheaf,
-		storage:   storage,
-		consensus: consensus,
-		mux:       http.NewServeMux(),
+		sheaf:         sheaf,
+		storage:       storage,
+		consensus:     consensus,
+		mux:           http.NewServeMux(),
+		authToken:     authToken,
+		allowedOrigin: allowedOrigin,
 	}
 	s.registerRoutes()
 	return s
+}
+
+// SetAuthToken updates the Bearer token dynamically.
+func (s *Server) SetAuthToken(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.authToken = token
+}
+
+// SetAllowedOrigin updates CORS policy origin.
+func (s *Server) SetAllowedOrigin(origin string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.allowedOrigin = origin
 }
 
 func (s *Server) registerRoutes() {
@@ -45,14 +71,52 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/", s.handleStaticOrDashboard)
 }
 
+func (s *Server) checkAuth(r *http.Request) bool {
+	s.mu.RLock()
+	expectedToken := s.authToken
+	s.mu.RUnlock()
+
+	if expectedToken == "" {
+		// Open access if not configured
+		return true
+	}
+
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return false
+	}
+	providedToken := strings.TrimPrefix(authHeader, "Bearer ")
+	return subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) == 1
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	s.mu.RLock()
+	origin := s.allowedOrigin
+	s.mu.RUnlock()
+
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	// Protect modifying API routes if auth token is active
+	if strings.HasPrefix(r.URL.Path, "/api/") && r.Method != http.MethodGet {
+		if !s.checkAuth(r) {
+			http.Error(w, "Unauthorized: invalid or missing Bearer token", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// Enforce 1MB max body limit against payload-exhaustion attacks
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -93,6 +157,12 @@ func (s *Server) handleSimplex(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Guard against Combinatorial Blowup DoS: limit max simplex dimension
+	if len(req.Vertices) > 4 {
+		http.Error(w, "Simplex vertex count exceeds maximum dimension (limit: 4 vertices for 3-simplex)", http.StatusBadRequest)
 		return
 	}
 
@@ -154,6 +224,12 @@ func (s *Server) handleSingleRecord(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, rec)
+	case http.MethodDelete:
+		if err := s.storage.Delete(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "deleted", "id": id})
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -227,8 +303,8 @@ func (s *Server) handleBettiNumbers(w http.ResponseWriter, r *http.Request) {
 	s.sheaf.CompileOperators()
 	b0, b1 := s.sheaf.ComputeBettiNumbers(1e-6)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"betti_0": b0,
-		"betti_1": b1,
+		"betti_0":     b0,
+		"betti_1":     b1,
 		"description": "betti_0 = connected components, betti_1 = non-bounding 1D cycles/holes",
 	})
 }
@@ -300,7 +376,7 @@ func (s *Server) handleStaticOrDashboard(w http.ResponseWriter, r *http.Request)
 	// Fallback to minimal dashboard HTML if files not found
 	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(DashboardHTML))
+		_, _ = io.WriteString(w, DashboardHTML)
 		return
 	}
 
@@ -366,69 +442,66 @@ const DashboardHTML = `<!DOCTYPE html>
     .card h2 {
       margin-top: 0;
       font-size: 16px;
-      color: #79c0ff;
+      color: var(--accent);
       border-bottom: 1px solid var(--border);
       padding-bottom: 8px;
     }
-    button {
-      background: #238636;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    button:hover { background: #2ea043; }
     pre {
       background: #090d13;
       padding: 12px;
       border-radius: 6px;
-      border: 1px solid var(--border);
       overflow-x: auto;
       font-size: 13px;
+    }
+    button {
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      opacity: 0.9;
     }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>TopoSpatiaDB <span class="badge">Holographic Consensus</span></h1>
-    <div id="status-pill">Ready</div>
+    <div>
+      <a href="/api/v1/status" target="_blank" style="color:var(--accent);text-decoration:none;">API Status</a>
+    </div>
   </div>
 
   <div class="grid">
     <div class="card">
-      <h2>Topological Engine Metrics</h2>
-      <div id="metrics">Loading...</div>
-      <button onclick="refreshMetrics()" style="margin-top:12px;">Refresh</button>
+      <h2>Database Metrics</h2>
+      <pre id="metrics">Loading...</pre>
     </div>
 
     <div class="card">
       <h2>Hodge Diffusion Consensus</h2>
-      <p>Resolve H^1 split-brain conflicts via heat kernel flow exp(-t * Delta_0).</p>
+      <p style="font-size:13px;color:#8b949e;">Projects replica conflicts onto harmonic subspace ker(Delta_0)</p>
       <button onclick="triggerDiffusion()">Run Topological Consensus</button>
-      <div id="diffusion-result" style="margin-top:12px;"></div>
+      <pre id="diffusion-result">Ready</pre>
     </div>
 
     <div class="card">
-      <h2>Hodge-Helmholtz & Betti Analytics</h2>
-      <p>Decompose flow into Gradient + Solenoidal (vortices) + Harmonic (holes).</p>
-      <button onclick="triggerHodgeDecompose()">Decompose Test Flow</button>
-      <button onclick="queryBetti()" style="margin-left:8px; background:#1f6feb;">Get Betti Numbers</button>
-      <div id="hodge-result" style="margin-top:12px; font-size:12px;"></div>
+      <h2>Hodge-Helmholtz Decomposition</h2>
+      <p style="font-size:13px;color:#8b949e;">Decomposes simplicial edge flow: Gradient + Solenoidal + Harmonic</p>
+      <button onclick="triggerHodgeDecompose()">Decompose Flow</button>
+      <button onclick="queryBetti()" style="background:#8957e5;color:white;margin-left:8px;">Betti Numbers</button>
+      <pre id="hodge-result">Ready</pre>
     </div>
 
     <div class="card">
-      <h2>Simplicial RAG Diffusion (AI Context)</h2>
-      <p>Multi-step simplicial heat spreading from seed node [0] to rank context.</p>
-      <button onclick="triggerRAG()">Run Simplicial RAG</button>
-      <div id="rag-result" style="margin-top:12px; font-size:12px;"></div>
+      <h2>Simplicial RAG Heat Diffusion</h2>
+      <p style="font-size:13px;color:#8b949e;">Multi-hop topological relevance propagation</p>
+      <button onclick="triggerRAG()">Propagate Knowledge</button>
+      <div id="rag-result" style="margin-top:10px;">Ready</div>
     </div>
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h2>Stored Sheaf Documents (Stalks)</h2>
-    <pre id="records-view">Loading records...</pre>
   </div>
 
   <script>
@@ -436,16 +509,7 @@ const DashboardHTML = `<!DOCTYPE html>
       try {
         const res = await fetch('/api/v1/status');
         const data = await res.json();
-        document.getElementById('metrics').innerHTML = 
-          '<div><strong>Vertices (0-Cells):</strong> ' + data.vertices_count + '</div>' +
-          '<div><strong>Edges (1-Cells):</strong> ' + data.edges_count + '</div>' +
-          '<div><strong>Faces (2-Cells):</strong> ' + data.faces_count + '</div>' +
-          '<div><strong>Records:</strong> ' + data.record_count + '</div>' +
-          '<div><strong>Stalk Dimension:</strong> ' + data.stalk_dim + '</div>';
-        
-        const recRes = await fetch('/api/v1/records');
-        const recData = await recRes.json();
-        document.getElementById('records-view').innerText = JSON.stringify(recData, null, 2);
+        document.getElementById('metrics').innerText = JSON.stringify(data, null, 2);
       } catch(e) {
         document.getElementById('metrics').innerText = 'Error loading status';
       }

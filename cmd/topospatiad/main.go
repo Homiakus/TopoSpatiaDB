@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"topospatia"
 )
@@ -70,7 +71,18 @@ func main() {
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
 	log.Printf("TopoSpatiaDB active and listening on http://%s", addr)
-	if err := http.ListenAndServe(addr, srv); err != nil {
+
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           srv,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB
+	}
+
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
