@@ -18,6 +18,13 @@
 </head>
 <body class="pf-body">
 
+  <!-- Interactive Scroll Indicator & Dynamic Torch Lighting -->
+  <div class="pf-scroll-indicator" id="pfScrollIndicator"></div>
+  <div class="pf-ambient-bg">
+    <div class="pf-grid-pattern"></div>
+    <div class="pf-torch-light" id="pfTorchLight"></div>
+  </div>
+
   <!-- Header Navigation (Prometheus Fuels Style: Clean dark bar, dot badge, crisp typography) -->
   <header class="pf-header">
     <div class="pf-header-inner">
@@ -129,7 +136,7 @@
       </div>
 
       <div class="pf-simplex-grid">
-        <div class="pf-simplex-card">
+        <div class="pf-simplex-card pf-card-interactive">
           <div class="pf-card-top">
             <span class="pf-card-step">0-СИМПЛЕКС $X^{(0)}$</span>
             <div class="pf-card-dash"></div>
@@ -140,7 +147,7 @@
           </p>
         </div>
 
-        <div class="pf-simplex-card">
+        <div class="pf-simplex-card pf-card-interactive">
           <div class="pf-card-top">
             <span class="pf-card-step">1-СИМПЛЕКС $X^{(1)}$</span>
             <div class="pf-card-dash"></div>
@@ -151,7 +158,7 @@
           </p>
         </div>
 
-        <div class="pf-simplex-card">
+        <div class="pf-simplex-card pf-card-interactive">
           <div class="pf-card-top">
             <span class="pf-card-step">2-СИМПЛЕКС $X^{(2)}$</span>
             <div class="pf-card-dash"></div>
@@ -183,7 +190,7 @@
 
       <div class="pf-math-grid">
         <!-- Math Block 1 -->
-        <div class="pf-math-card">
+        <div class="pf-math-card pf-card-interactive">
           <div class="pf-math-header">
             <span class="pf-math-badge">01 &bull; Клеточный пучок данных</span>
           </div>
@@ -196,7 +203,7 @@
         </div>
 
         <!-- Math Block 2 -->
-        <div class="pf-math-card">
+        <div class="pf-math-card pf-card-interactive">
           <div class="pf-math-header">
             <span class="pf-math-badge">02 &bull; Нильпотентность кограницы</span>
           </div>
@@ -209,7 +216,7 @@
         </div>
 
         <!-- Math Block 3 -->
-        <div class="pf-math-card">
+        <div class="pf-math-card pf-card-interactive">
           <div class="pf-math-header">
             <span class="pf-math-badge">03 &bull; Спектральное разложение Ходжа</span>
           </div>
@@ -222,7 +229,7 @@
         </div>
 
         <!-- Math Block 4 (Hero Formula) -->
-        <div class="pf-math-card pf-math-highlight">
+        <div class="pf-math-card pf-math-highlight pf-card-interactive">
           <div class="pf-math-header">
             <span class="pf-math-badge">04 &bull; Бесконфликтный градиентный поток</span>
           </div>
@@ -253,7 +260,7 @@
       </p>
 
       <div class="pf-arch-grid">
-        <div class="pf-arch-card">
+        <div class="pf-arch-card pf-card-interactive">
           <div class="pf-arch-num">01</div>
           <h3 class="pf-arch-title">RWMutex Read/Write Split</h3>
           <p class="pf-arch-text">
@@ -261,7 +268,7 @@
           </p>
         </div>
 
-        <div class="pf-arch-card">
+        <div class="pf-arch-card pf-card-interactive">
           <div class="pf-arch-num">02</div>
           <h3 class="pf-arch-title">Smart Drain Group Commit</h3>
           <p class="pf-arch-text">
@@ -269,7 +276,7 @@
           </p>
         </div>
 
-        <div class="pf-arch-card">
+        <div class="pf-arch-card pf-card-interactive">
           <div class="pf-arch-num">03</div>
           <h3 class="pf-arch-title">Кэш Операторов Ходжа</h3>
           <p class="pf-arch-text">
@@ -294,9 +301,9 @@
       </h2>
 
       <div class="pf-app-grid">
-        <div class="pf-app-card">
+        <div class="pf-app-card pf-card-interactive">
           <div class="pf-app-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="0"/><rect x="2" y="14" width="20" height="8" rx="0"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
           </div>
           <h3 class="pf-app-heading">Data Center Ultra-Scale</h3>
           <div class="pf-app-divider"></div>
@@ -305,7 +312,7 @@
           </p>
         </div>
 
-        <div class="pf-app-card">
+        <div class="pf-app-card pf-card-interactive">
           <div class="pf-app-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
           </div>
@@ -316,7 +323,7 @@
           </p>
         </div>
 
-        <div class="pf-app-card">
+        <div class="pf-app-card pf-card-interactive">
           <div class="pf-app-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DF1A25" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
           </div>
@@ -345,7 +352,7 @@
         Аппаратное окружение: Intel Core i5-9300H CPU @ 2.40GHz (4 ядра, 8 потоков), Linux amd64, Go 1.26.8.
       </p>
 
-      <div class="pf-table-wrapper">
+      <div class="pf-table-wrapper pf-card-interactive">
         <table class="pf-table">
           <thead>
             <tr>
