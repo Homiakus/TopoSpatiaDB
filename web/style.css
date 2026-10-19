@@ -864,6 +864,70 @@ body.pf-body {
   margin-left: 8px;
 }
 
+/* Multi-Language Integration Features Grid */
+.pf-integration-features {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.pf-int-card {
+  background: var(--pf-bg-card);
+  border: 1px solid var(--pf-border);
+  border-radius: 0;
+  padding: 20px 18px;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.pf-int-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(223, 26, 37, 0.4);
+}
+
+.pf-int-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pf-int-badge {
+  font-family: var(--pf-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pf-red);
+  letter-spacing: 0.5px;
+}
+
+.pf-int-metric {
+  font-family: var(--pf-font-mono);
+  font-size: 10px;
+  color: var(--pf-text-dim);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border: 1px solid var(--pf-border);
+}
+
+.pf-int-desc {
+  font-size: 12px;
+  color: var(--pf-text-muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 992px) {
+  .pf-integration-features {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 576px) {
+  .pf-integration-features {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Code Showcase */
 .pf-code-container {
   background: #060606;
@@ -877,6 +941,8 @@ body.pf-body {
   background: #0e0e0e;
   border-bottom: 1px solid var(--pf-border);
   padding: 0 16px;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .pf-tab-btn {

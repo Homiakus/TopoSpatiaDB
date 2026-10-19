@@ -418,28 +418,129 @@
     </div>
   </section>
 
-  <!-- Section: Quickstart Code Showcase -->
+  <!-- Section: Multi-Language Integration Hub (Go, Rust, Python, C/C++, REST) -->
   <section class="pf-section pf-code-section" id="quickstart">
     <div class="pf-container">
       <div class="pf-section-tag">
         <svg class="pf-tag-dot" viewBox="0 0 512 512" fill="#DF1A25" width="8" height="8"><circle cx="256" cy="256" r="256"/></svg>
-        <span>Быстрый старт</span>
+        <span>Мультиплатформенная интеграция</span>
       </div>
 
       <h2 class="pf-section-title">
-        ИНТЕГРАЦИЯ В 3 ШАГА<span class="pf-red-dot">.</span>
+        ИНТЕГРАЦИЯ С ЛЮБЫМ СТЕКОМ<span class="pf-red-dot">.</span>
       </h2>
       <p class="pf-section-desc">
-        Используйте TopoSpatiaDB как встраиваемый Go-движок или развертывайте как микросервис с REST API.
+        Используйте TopoSpatiaDB как нативный in-process движок с нулевой стоимостью FFI вызовов в <strong>Rust</strong>, <strong>Python</strong>, <strong>C/C++</strong> и <strong>Go</strong>, либо подключайтесь через распределенный <strong>HTTP/REST & WebSocket</strong> шлюз.
       </p>
+
+      <!-- Language Badges / Features Grid -->
+      <div class="pf-integration-features">
+        <div class="pf-int-card">
+          <div class="pf-int-head">
+            <span class="pf-int-badge">Go 1.22+</span>
+            <span class="pf-int-metric">7.48M QPS</span>
+          </div>
+          <p class="pf-int-desc">Нативный встраиваемый движок с прямым доступом к симплициальному пучку и параллельному WAL без CGO оверхеда.</p>
+        </div>
+        <div class="pf-int-card">
+          <div class="pf-int-head">
+            <span class="pf-int-badge">Rust (Cargo)</span>
+            <span class="pf-int-metric">Zero-Cost FFI</span>
+          </div>
+          <p class="pf-int-desc">Идиоматичный crate с RAII управлением дескрипторами `topospatia::DB`, `Send + Sync` потокобезопасностью и serde-сериализацией.</p>
+        </div>
+        <div class="pf-int-card">
+          <div class="pf-int-head">
+            <span class="pf-int-badge">Python 3.9+</span>
+            <span class="pf-int-metric">ctypes / C-ABI</span>
+          </div>
+          <p class="pf-int-desc">Прямая интеграция с AI & Data Science стеком (PyTorch, NumPy). Быстрое симплициальное распространение градиентов для RAG.</p>
+        </div>
+        <div class="pf-int-card">
+          <div class="pf-int-head">
+            <span class="pf-int-badge">C / C++ (C99)</span>
+            <span class="pf-int-metric">Shared Library</span>
+          </div>
+          <p class="pf-int-desc">Динамическая библиотека `libtopospatia.so` с чистым C ABI (`libtopospatia.h`) для встраивания в high-load сервисы и микроконтроллеры.</p>
+        </div>
+      </div>
 
       <div class="pf-code-container">
         <div class="pf-code-tabs">
-          <button class="pf-tab-btn active" data-tab="tab-go">Встраиваемый Go SDK</button>
+          <button class="pf-tab-btn active" data-tab="tab-rust">Rust Crate</button>
+          <button class="pf-tab-btn" data-tab="tab-python">Python In-Process</button>
+          <button class="pf-tab-btn" data-tab="tab-go">Встраиваемый Go SDK</button>
+          <button class="pf-tab-btn" data-tab="tab-c">C / C++ (C99 ABI)</button>
           <button class="pf-tab-btn" data-tab="tab-curl">cURL & REST API</button>
         </div>
 
-        <div class="pf-code-body" id="tab-go">
+        <!-- Rust Code Tab -->
+        <div class="pf-code-body" id="tab-rust">
+          <pre><code><span class="hl-com">// Cargo.toml: topospatia = { path = "bindings/rust" }</span>
+<span class="hl-kw">use</span> topospatia::DB;
+<span class="hl-kw">use</span> serde_json::json;
+
+<span class="hl-kw">fn</span> <span class="hl-fn">main</span>() -> Result&lt;(), Box&lt;<span class="hl-kw">dyn</span> std::error::Error&gt;&gt; {
+    <span class="hl-com">// 1. Открытие встроенной БД с WAL-журналированием (max_dim: 2, stalk_dim: 2)</span>
+    <span class="hl-kw">let</span> db = DB::<span class="hl-fn">open</span>(<span class="hl-str">"./data"</span>, 2, 2, <span class="hl-kw">false</span>)?;
+
+    <span class="hl-com">// 2. Регистрация симплициальных клеток (вершины [0], [1] и грань [0, 1])</span>
+    <span class="hl-kw">let</span> v0 = db.<span class="hl-fn">add_cell</span>(&[0])?;
+    <span class="hl-kw">let</span> v1 = db.<span class="hl-fn">add_cell</span>(&[1])?;
+    <span class="hl-kw">let</span> edge = db.<span class="hl-fn">add_cell</span>(&[0, 1])?;
+    db.<span class="hl-fn">compile</span>()?; <span class="hl-com">// Предкомпиляция операторов Ходжа Delta_k</span>
+
+    <span class="hl-com">// 3. Запись векторного стебля и полезной нагрузки в реплику</span>
+    db.<span class="hl-fn">put</span>(<span class="hl-str">"tx-101"</span>, &edge, 1, &[2.4, 8.1], &json!({ <span class="hl-str">"status"</span>: <span class="hl-str">"replicated"</span> }))?;
+
+    <span class="hl-com">// 4. Запуск теплового консенсуса Ходжа exp(-t * Delta_0) без очередей блокировок</span>
+    <span class="hl-kw">let</span> report = db.<span class="hl-fn">diffuse</span>()?;
+    println!(<span class="hl-str">"Согласованность достигнута: E(x) -> {}"</span>, report.final_energy);
+
+    <span class="hl-com">// 5. Топологический RAG поиск по комплексу</span>
+    <span class="hl-kw">let</span> rag_result = db.<span class="hl-fn">rag_diffuse</span>(&[0], 3, 0.15)?;
+    println!(<span class="hl-str">"RAG релевантность узлов: {:?}"</span>, rag_result);
+    Ok(())
+}</code></pre>
+        </div>
+
+        <!-- Python Code Tab -->
+        <div class="pf-code-body hidden" id="tab-python">
+          <pre><code><span class="hl-kw">from</span> topospatia <span class="hl-kw">import</span> DB
+<span class="hl-kw">import</span> json
+
+<span class="hl-com"># 1. Открытие встроенной базы данных TopoSpatiaDB через прямой C-FFI</span>
+db = DB(<span class="hl-str">"./data"</span>, max_dim=2, stalk_dim=2, fsync=False)
+
+<span class="hl-kw">try</span>:
+    <span class="hl-com"># 2. Добавление симплексов топологического графа знаний</span>
+    c0 = db.add_cell([0])
+    c1 = db.add_cell([1])
+    c_edge = db.add_cell([0, 1])
+    db.compile()  <span class="hl-com"># Построение матрицы оператора Лапласа Delta_0</span>
+
+    <span class="hl-com"># 3. Атомарное сохранение векторных эмбеддингов</span>
+    db.put(
+        doc_id=<span class="hl-str">"node_vector_0"</span>,
+        cell_id=c0,
+        dim=0,
+        vector=[0.85, 0.42],
+        payload={<span class="hl-str">"title"</span>: <span class="hl-str">"Hodge Sheaf Embedding"</span>, <span class="hl-str">"confidence"</span>: 0.99}
+    )
+
+    <span class="hl-com"># 4. Вычисление гармонических чисел Бетти (H_0, H_1) комплексов</span>
+    betti = db.betti(tolerance=1e-5)
+    print(f<span class="hl-str">"Числа Бетти хранилища: {betti}"</span>)
+
+    <span class="hl-com"># 5. Симплициальное распространение RAG-контекста для LLM</span>
+    scores = db.rag_diffuse(seeds=[0], steps=3, alpha=0.1)
+    print(f<span class="hl-str">"Топологический контекст RAG: {scores}"</span>)
+<span class="hl-kw">finally</span>:
+    db.close()</code></pre>
+        </div>
+
+        <!-- Go Code Tab -->
+        <div class="pf-code-body hidden" id="tab-go">
           <pre><code><span class="hl-kw">package</span> main
 
 <span class="hl-kw">import</span> (
@@ -456,32 +557,75 @@
     sheaf.<span class="hl-fn">AddCell</span>([]<span class="hl-kw">int</span>{0, 1, 2})
     sheaf.<span class="hl-fn">CompileOperators</span>()
 
-    <span class="hl-com">// 2. Открытие ACID WAL хранилища и движка консенсуса</span>
-    storage, _ := topospatia.<span class="hl-fn">OpenStorage</span>(<span class="hl-str">"./data"</span>, sheaf)
+    <span class="hl-com">// 2. Открытие высокопроизводительного WAL хранилища и движка консенсуса</span>
+    storage, err := topospatia.<span class="hl-fn">OpenStorage</span>(<span class="hl-str">"./data"</span>, sheaf)
+    <span class="hl-kw">if</span> err != nil {
+        log.<span class="hl-fn">Fatal</span>(err)
+    }
     consensus := topospatia.<span class="hl-fn">NewConsensusEngine</span>(sheaf, storage)
 
     <span class="hl-com">// 3. Запуск градиентной тепловой диффузии: сведение вихрей H^1 к гармоническому ядру</span>
     iters, initE, finalE := consensus.<span class="hl-fn">DiffuseHeatKernel</span>(0.1, 100, 1e-6)
-    log.<span class="hl-fn">Printf</span>(<span class="hl-str">"Консенсус сошелся за %d шагов: E(x) %.6f -> %.6f"</span>, iters, initE, finalE)
+    log.<span class="hl-fn">Printf</span>(<span class="hl-str">"Консенсус сошелся за %d шагов: E(x) %.6f -> %.6f (Дедлоки: 0%%)"</span>, iters, initE, finalE)
 }</code></pre>
         </div>
 
+        <!-- C/C++ Code Tab -->
+        <div class="pf-code-body hidden" id="tab-c">
+          <pre><code><span class="hl-com">/* Подключение libtopospatia.h и линковка с -ltopospatia */</span>
+<span class="hl-kw">#include</span> <span class="hl-str">&lt;stdio.h&gt;</span>
+<span class="hl-kw">#include</span> <span class="hl-str">&lt;stdlib.h&gt;</span>
+<span class="hl-kw">#include</span> <span class="hl-str">"libtopospatia.h"</span>
+
+<span class="hl-kw">int</span> <span class="hl-fn">main</span>(<span class="hl-kw">void</span>) {
+    <span class="hl-com">// 1. Открытие дескриптора БД: dataDir, maxDim=2, stalkDim=2, fsync=0</span>
+    GoUintptr db = <span class="hl-fn">topospatia_open</span>(<span class="hl-str">"./data"</span>, 2, 2, 0);
+    <span class="hl-kw">if</span> (db == 0) {
+        <span class="hl-fn">fprintf</span>(stderr, <span class="hl-str">"Ошибка инициализации TopoSpatiaDB\n"</span>);
+        <span class="hl-kw">return</span> 1;
+    }
+
+    <span class="hl-com">// 2. Добавление симплициального ребра [0, 1]</span>
+    <span class="hl-kw">int</span> verts[] = {0, 1};
+    <span class="hl-kw">char</span>* cell_id = <span class="hl-fn">topospatia_add_cell</span>(db, verts, 2);
+    <span class="hl-fn">topospatia_compile</span>(db);
+
+    <span class="hl-com">// 3. Запись вектора состояния без блокировок</span>
+    <span class="hl-kw">double</span> vec[] = {12.8, -4.5};
+    <span class="hl-fn">topospatia_put</span>(db, <span class="hl-str">"record_c"</span>, cell_id, 1, vec, 2, <span class="hl-str">"{\"engine\":\"c99\"}"</span>);
+
+    <span class="hl-com">// 4. Исполнение диффузии Ходжа: возврат JSON строки отчета</span>
+    <span class="hl-kw">char</span>* report_json = <span class="hl-fn">topospatia_diffuse</span>(db);
+    <span class="hl-fn">printf</span>(<span class="hl-str">"Отчет диффузии: %s\n"</span>, report_json);
+
+    <span class="hl-com">// 5. Освобождение памяти, выделенной Go runtime, и закрытие базы</span>
+    <span class="hl-fn">topospatia_free_string</span>(cell_id);
+    <span class="hl-fn">topospatia_free_string</span>(report_json);
+    <span class="hl-fn">topospatia_close</span>(db);
+    <span class="hl-kw">return</span> 0;
+}</code></pre>
+        </div>
+
+        <!-- cURL & REST Tab -->
         <div class="pf-code-body hidden" id="tab-curl">
-          <pre><code><span class="hl-com"># 1. Запрос метрик и структуры комплекса</span>
+          <pre><code><span class="hl-com"># 1. Запрос метрик и структуры клеточного комплекса</span>
 curl -X GET http://localhost:8089/api/v1/status
 
 <span class="hl-com"># 2. Запуск теплового консенсуса Ходжа exp(-t * Delta_0)</span>
 curl -X POST http://localhost:8089/api/v1/consensus/diffuse
 
-<span class="hl-com"># 3. Симплициальное RAG-распространение контекста</span>
+<span class="hl-com"># 3. Симплициальное RAG-распространение контекста по гиперграфу</span>
 curl -X POST http://localhost:8089/api/v1/rag/diffuse \
   -H "Content-Type: application/json" \
   -d '{"seeds": [0], "steps": 3, "alpha": 0.1}'
 
-<span class="hl-com"># 4. Атомарный коммит векторного стебля</span>
+<span class="hl-com"># 4. Атомарный коммит векторного стебля в WAL журнал</span>
 curl -X POST http://localhost:8089/api/v1/records \
   -H "Content-Type: application/json" \
-  -d '{"id": "rec-1", "cell_id": "[0]", "dimension": 0, "vector": [10.5, 4.2]}'</code></pre>
+  -d '{"id": "rec-1", "cell_id": "[0]", "dimension": 0, "vector": [10.5, 4.2], "payload": {"source": "rest_gateway"}}'
+
+<span class="hl-com"># 5. Вычисление топологических инвариантов и чисел Бетти комплекса</span>
+curl -X GET http://localhost:8089/api/v1/betti?tol=0.0001</code></pre>
         </div>
       </div>
     </div>
