@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	handlesMu sync.Mutex
+	handlesMu sync.RWMutex
 	handles   = make(map[uintptr]*topospatia.DB)
 	nextID    uintptr = 1
 )
@@ -29,8 +29,8 @@ func registerDB(db *topospatia.DB) uintptr {
 }
 
 func getDB(id uintptr) *topospatia.DB {
-	handlesMu.Lock()
-	defer handlesMu.Unlock()
+	handlesMu.RLock()
+	defer handlesMu.RUnlock()
 	return handles[id]
 }
 
@@ -44,6 +44,9 @@ func unregisterDB(id uintptr) *topospatia.DB {
 
 //export topospatia_open
 func topospatia_open(cDataDir *C.char, maxDim C.int, stalkDim C.int, fsync C.int) uintptr {
+	if cDataDir == nil {
+		return 0
+	}
 	dataDir := C.GoString(cDataDir)
 	opts := topospatia.DefaultOptions(dataDir)
 	if maxDim > 0 {
@@ -76,9 +79,14 @@ func topospatia_close(handle uintptr) C.int {
 //export topospatia_add_cell
 func topospatia_add_cell(handle uintptr, vertices *C.int, count C.int) *C.char {
 	db := getDB(handle)
-	if db == nil || count <= 0 {
+	if db == nil || count <= 0 || vertices == nil {
 		return nil
 	}
+	// Limit maximum dimension to 4 vertices (3-simplex) to prevent combinatorial explosion
+	if count > 4 {
+		return nil
+	}
+
 	slice := unsafe.Slice(vertices, count)
 	goVerts := make([]int, count)
 	for i, v := range slice {
@@ -105,16 +113,18 @@ func topospatia_compile(handle uintptr) C.int {
 //export topospatia_put
 func topospatia_put(handle uintptr, cID *C.char, cCellID *C.char, dim C.int, vector *C.double, vecLen C.int, cPayloadJSON *C.char) C.int {
 	db := getDB(handle)
-	if db == nil {
+	if db == nil || cID == nil || cCellID == nil {
 		return -1
 	}
 	id := C.GoString(cID)
 	cellID := C.GoString(cCellID)
-	payloadJSON := C.GoString(cPayloadJSON)
 
 	var payload map[string]interface{}
-	if payloadJSON != "" {
-		_ = json.Unmarshal([]byte(payloadJSON), &payload)
+	if cPayloadJSON != nil {
+		payloadJSON := C.GoString(cPayloadJSON)
+		if payloadJSON != "" {
+			_ = json.Unmarshal([]byte(payloadJSON), &payload)
+		}
 	}
 
 	var vec topospatia.StalkVector
@@ -143,7 +153,7 @@ func topospatia_put(handle uintptr, cID *C.char, cCellID *C.char, dim C.int, vec
 //export topospatia_get
 func topospatia_get(handle uintptr, cID *C.char) *C.char {
 	db := getDB(handle)
-	if db == nil {
+	if db == nil || cID == nil {
 		return nil
 	}
 	id := C.GoString(cID)
@@ -161,7 +171,7 @@ func topospatia_get(handle uintptr, cID *C.char) *C.char {
 //export topospatia_query_cell
 func topospatia_query_cell(handle uintptr, cCellID *C.char) *C.char {
 	db := getDB(handle)
-	if db == nil {
+	if db == nil || cCellID == nil {
 		return nil
 	}
 	cellID := C.GoString(cCellID)
@@ -210,7 +220,7 @@ func topospatia_betti(handle uintptr, tol C.double) *C.char {
 //export topospatia_rag_diffuse
 func topospatia_rag_diffuse(handle uintptr, seeds *C.int, seedCount C.int, steps C.int, alpha C.double) *C.char {
 	db := getDB(handle)
-	if db == nil || seedCount <= 0 {
+	if db == nil || seedCount <= 0 || seeds == nil {
 		return nil
 	}
 	slice := unsafe.Slice(seeds, seedCount)
