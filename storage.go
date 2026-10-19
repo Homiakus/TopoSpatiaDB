@@ -1,6 +1,7 @@
 package topospatia
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -37,7 +38,8 @@ type WALEntry struct {
 
 const (
 	NumShards    = 32
-	batchChanCap = 8192
+	batchChanCap = 16384
+	maxBatchSize = 512
 )
 
 type recordShard struct {
@@ -47,20 +49,27 @@ type recordShard struct {
 }
 
 type walWriteReq struct {
-	entry WALEntry
 	data  []byte
 	errCh chan error
 }
 
+var reqPool = sync.Pool{
+	New: func() interface{} {
+		return &walWriteReq{
+			errCh: make(chan error, 1),
+		}
+	},
+}
+
 // StorageEngine provides durable persistence, sharded in-memory indexing,
-// parallel cryptographic hashing, and batched WAL group commit.
+// parallel cryptographic hashing, and non-delayed event-driven WAL group commit.
 type StorageEngine struct {
 	dir         string
 	shards      [NumShards]*recordShard
 	walFile     *os.File
 	currentTx   uint64
 	sheaf       *SimplicialSheaf
-	walQueue    chan walWriteReq
+	walQueue    chan *walWriteReq
 	walWg       sync.WaitGroup
 	walStopCh   chan struct{}
 	forceSync   bool // configurable fsync policy
@@ -82,7 +91,7 @@ func OpenStorage(dir string, sheaf *SimplicialSheaf) (*StorageEngine, error) {
 		dir:       dir,
 		walFile:   walFile,
 		sheaf:     sheaf,
-		walQueue:  make(chan walWriteReq, batchChanCap),
+		walQueue:  make(chan *walWriteReq, batchChanCap),
 		walStopCh: make(chan struct{}),
 		forceSync: false,
 	}
@@ -98,7 +107,7 @@ func OpenStorage(dir string, sheaf *SimplicialSheaf) (*StorageEngine, error) {
 		return nil, fmt.Errorf("WAL recovery failed: %w", err)
 	}
 
-	// Start asynchronous group commit pipeline
+	// Start event-driven non-delayed group commit worker
 	engine.walWg.Add(1)
 	go engine.walGroupCommitWorker()
 
@@ -129,59 +138,75 @@ func (r *Record) computeHash() string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// walGroupCommitWorker collects pending WAL entries and flushes them in batched I/O.
+// walGroupCommitWorker executes opportunistic event-driven batching WITHOUT timer delays.
 func (se *StorageEngine) walGroupCommitWorker() {
 	defer se.walWg.Done()
 
-	buffer := make([]byte, 0, 128*1024)
-	waiters := make([]chan error, 0, 256)
-
-	ticker := time.NewTicker(200 * time.Microsecond)
-	defer ticker.Stop()
-
-	flush := func() {
-		if len(waiters) == 0 {
-			return
-		}
-		_, err := se.walFile.Write(buffer)
-		if err == nil && se.forceSync {
-			err = se.walFile.Sync()
-		}
-		for _, ch := range waiters {
-			ch <- err
-		}
-		buffer = buffer[:0]
-		waiters = waiters[:0]
-	}
+	batch := make([]*walWriteReq, 0, maxBatchSize)
+	var buf bytes.Buffer
+	buf.Grow(128 * 1024)
 
 	for {
+		// 1. Block only when queue is completely empty (0 us delay on first item)
 		select {
 		case req, ok := <-se.walQueue:
 			if !ok {
-				flush()
 				return
 			}
-			buffer = append(buffer, req.data...)
-			waiters = append(waiters, req.errCh)
-			// Batch size threshold
-			if len(waiters) >= 256 || len(buffer) >= 64*1024 {
-				flush()
-			}
-		case <-ticker.C:
-			flush()
+			batch = append(batch, req)
 		case <-se.walStopCh:
-			// Drain remaining
+			// Drain remaining on shutdown
 			for {
 				select {
 				case req := <-se.walQueue:
-					buffer = append(buffer, req.data...)
-					waiters = append(waiters, req.errCh)
+					batch = append(batch, req)
 				default:
-					flush()
+					if len(batch) > 0 {
+						buf.Reset()
+						for _, r := range batch {
+							buf.Write(r.data)
+						}
+						_, err := se.walFile.Write(buf.Bytes())
+						if err == nil && se.forceSync {
+							_ = se.walFile.Sync()
+						}
+						for _, r := range batch {
+							r.errCh <- err
+						}
+					}
 					return
 				}
 			}
 		}
+
+		// 2. Opportunistically drain whatever has already arrived in the buffer right now
+	drainLoop:
+		for len(batch) < maxBatchSize && buf.Len() < 64*1024 {
+			select {
+			case req := <-se.walQueue:
+				batch = append(batch, req)
+			default:
+				// Queue empty right now: DO NOT wait for timer, write immediately!
+				break drainLoop
+			}
+		}
+
+		// 3. Serialize batch into preallocated buffer and execute single write()
+		buf.Reset()
+		for _, req := range batch {
+			buf.Write(req.data)
+		}
+
+		_, err := se.walFile.Write(buf.Bytes())
+		if err == nil && se.forceSync {
+			err = se.walFile.Sync()
+		}
+
+		// 4. Notify waiting callers immediately
+		for _, req := range batch {
+			req.errCh <- err
+		}
+		batch = batch[:0]
 	}
 }
 
@@ -251,7 +276,7 @@ func (shard *recordShard) unindexRecord(cellID, recID string) {
 	}
 }
 
-// Put writes or updates a record inside a specific cell stalk with sharded lock & group commit.
+// Put writes or updates a record inside a specific cell stalk with sharded lock & event-driven group commit.
 func (se *StorageEngine) Put(rec *Record) error {
 	if rec.ID == "" {
 		return errors.New("empty record ID")
@@ -282,16 +307,20 @@ func (se *StorageEngine) Put(rec *Record) error {
 	}
 	data = append(data, '\n')
 
-	// 3. Dispatch to Group Commit WAL batch queue
-	errCh := make(chan error, 1)
-	req := walWriteReq{
-		entry: entry,
-		data:  data,
-		errCh: errCh,
+	// 3. Dispatch to Non-Delayed Event-Driven Group Commit queue
+	req := reqPool.Get().(*walWriteReq)
+	req.data = data
+	// Drain any residual error if channel had leftover
+	select {
+	case <-req.errCh:
+	default:
 	}
 
 	se.walQueue <- req
-	if err := <-errCh; err != nil {
+	err = <-req.errCh
+	reqPool.Put(req)
+
+	if err != nil {
 		return fmt.Errorf("WAL group commit failed: %w", err)
 	}
 
