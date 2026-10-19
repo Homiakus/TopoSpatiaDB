@@ -397,62 +397,89 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHypercube(progress);
   }, { passive: true });
 
-  // Interactive Mouse & Mobile Touch Rotation
+  // Interactive Touch & Tap Physics Engine (Mobile & Desktop)
   let isDragging = false;
   let lastTouchX = 0;
   let lastTouchY = 0;
-  let autoPhase = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let velX = 0;
+  let velY = 0;
 
-  function handleDragStart(x, y) {
+  function handleTouchStart(x, y) {
     isDragging = true;
     lastTouchX = x;
     lastTouchY = y;
+    touchStartX = x;
+    touchStartY = y;
+    touchStartTime = performance.now();
+    velX = 0;
+    velY = 0;
   }
 
-  function handleDragMove(x, y) {
+  function handleTouchMove(x, y) {
     if (isDragging) {
       const dx = x - lastTouchX;
       const dy = y - lastTouchY;
       lastTouchX = x;
       lastTouchY = y;
 
-      currentRotXW += dx * 0.008;
-      currentRotZW += dy * 0.008;
+      velX = dx * 0.012;
+      velY = dy * 0.012;
+
+      currentRotXW += velX;
+      currentRotZW += velY;
     }
   }
 
-  function handleDragEnd() {
-    isDragging = false;
+  function handleTouchEnd() {
+    if (isDragging) {
+      isDragging = false;
+      const duration = performance.now() - touchStartTime;
+      const totalDist = Math.hypot(lastTouchX - touchStartX, lastTouchY - touchStartY);
+
+      // Detect Tap (short duration, minimal displacement)
+      if (duration < 300 && totalDist < 12) {
+        // Tap gives an immediate energetic spin impulse to the hypercube
+        const tapImpulseX = (Math.random() > 0.5 ? 1 : -1) * (0.04 + Math.random() * 0.03);
+        const tapImpulseY = (Math.random() > 0.5 ? 1 : -1) * (0.04 + Math.random() * 0.03);
+        velX = tapImpulseX;
+        velY = tapImpulseY;
+        currentRotXY += 0.25;
+        currentRotYZ += 0.20;
+      }
+    }
   }
 
   // Mouse Listeners
   window.addEventListener('mousedown', (e) => {
-    handleDragStart(e.clientX, e.clientY);
+    handleTouchStart(e.clientX, e.clientY);
   });
 
   window.addEventListener('mousemove', (e) => {
-    handleDragMove(e.clientX, e.clientY);
+    handleTouchMove(e.clientX, e.clientY);
   });
 
-  window.addEventListener('mouseup', handleDragEnd);
+  window.addEventListener('mouseup', handleTouchEnd);
 
-  // Mobile Touch Listeners (Full touch gesture support)
+  // Mobile Touch Listeners (Full touch gesture & tap responsiveness)
   window.addEventListener('touchstart', (e) => {
     if (e.touches && e.touches.length > 0) {
-      handleDragStart(e.touches[0].clientX, e.touches[0].clientY);
+      handleTouchStart(e.touches[0].clientX, e.touches[0].clientY);
     }
   }, { passive: true });
 
   window.addEventListener('touchmove', (e) => {
     if (e.touches && e.touches.length > 0) {
-      handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
+      handleTouchMove(e.touches[0].clientX, e.touches[0].clientY);
     }
   }, { passive: true });
 
-  window.addEventListener('touchend', handleDragEnd, { passive: true });
-  window.addEventListener('touchcancel', handleDragEnd, { passive: true });
+  window.addEventListener('touchend', handleTouchEnd, { passive: true });
+  window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
-  // Continuous Animation Loop (Runs on both Desktop & Mobile)
+  // Continuous Animation Loop with Inertial Momentum
   let currentScrollProgress = 0;
   function updateScrollProgress() {
     const scrollTop = window.scrollY || document.documentElement.scrollTop;
@@ -466,12 +493,20 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', updateScrollProgress, { passive: true });
 
   function animationLoop() {
-    // Gentle natural auto-rotation so hypercube always floats and rotates even when idle on mobile
     if (!isDragging) {
-      autoPhase += 0.005;
-      currentRotXY += 0.003;
-      currentRotYZ += 0.002;
+      // Apply momentum decay / inertia
+      currentRotXW += velX;
+      currentRotZW += velY;
+      velX *= 0.94; // Smooth damping
+      velY *= 0.94;
+
+      // When momentum subsides, maintain subtle ambient float
+      if (Math.abs(velX) < 0.0005 && Math.abs(velY) < 0.0005) {
+        currentRotXY += 0.0015;
+        currentRotYZ += 0.001;
+      }
     }
+
     renderHypercube(currentScrollProgress);
     requestAnimationFrame(animationLoop);
   }
