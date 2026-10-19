@@ -173,4 +173,17 @@ curl -X POST http://localhost:8089/api/v1/simplex \
 
 # 3. Запуск консенсуса Ходжа
 curl -X POST http://localhost:8089/api/v1/consensus/diffuse
+
+# 4. Разложение Ходжа–Гельмгольца (детекция циклов и антифрод)
+curl -X POST http://localhost:8089/api/v1/topology/hodge-decompose \
+  -H "Content-Type: application/json" \
+  -d '{"flow": [1.0, -0.5, 0.8, -0.2, 0.4, 0.1], "max_steps": 50, "dt": 0.05}'
+
+# 5. Вычисление топологических чисел Бетти (дыры и полости)
+curl http://localhost:8089/api/v1/topology/betti
+
+# 6. Simplicial RAG Diffusion (ранжирование контекста для LLM)
+curl -X POST http://localhost:8089/api/v1/rag/diffuse \
+  -H "Content-Type: application/json" \
+  -d '{"seeds": [0], "steps": 3, "alpha": 0.1}'
 ```

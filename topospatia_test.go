@@ -8,7 +8,6 @@ import (
 )
 
 func TestCoboundaryComposition(t *testing.T) {
-	// Create a 2D simplicial complex: vertices, edges, triangles
 	sheaf := NewSimplicialSheaf(2, 2)
 
 	// Triangle {0, 1, 2}
@@ -35,28 +34,24 @@ func TestCoboundaryComposition(t *testing.T) {
 func TestHodgeLaplacianDirichletEnergy(t *testing.T) {
 	sheaf := NewSimplicialSheaf(2, 1)
 
-	// Simple edge between 0 and 1
 	sheaf.AddCell([]int{0})
 	sheaf.AddCell([]int{1})
 	sheaf.AddCell([]int{0, 1})
 
 	sheaf.CompileOperators()
 
-	// Equal stalk values -> zero Dirichlet energy (harmonic 0-cochain)
 	xHarmonic := StalkVector{5.0, 5.0}
 	eHarmonic := sheaf.ComputeDirichletEnergy(0, xHarmonic)
 	if math.Abs(eHarmonic) > 1e-9 {
 		t.Fatalf("Expected zero Dirichlet energy for harmonic section, got %f", eHarmonic)
 	}
 
-	// Disagreeing stalk values -> non-zero Dirichlet energy (cohomological conflict)
 	xConflict := StalkVector{10.0, 0.0}
 	eConflict := sheaf.ComputeDirichletEnergy(0, xConflict)
 	if eConflict <= 0 {
 		t.Fatalf("Expected positive Dirichlet energy for conflict, got %f", eConflict)
 	}
 
-	// Test heat diffusion step reduces energy
 	diffused := sheaf.HeatDiffusionStep(0, xConflict, 0.1)
 	eDiffused := sheaf.ComputeDirichletEnergy(0, diffused)
 	if eDiffused >= eConflict {
@@ -117,5 +112,53 @@ func TestStorageAndConsensus(t *testing.T) {
 
 	if report.FinalEnergy >= report.InitialEnergy {
 		t.Fatalf("Consensus failed to lower energy: init=%f, final=%f", report.InitialEnergy, report.FinalEnergy)
+	}
+}
+
+func TestHodgeHelmholtzDecomposition(t *testing.T) {
+	sheaf := NewSimplicialSheaf(2, 1)
+
+	// Triangle {0, 1, 2} with 3 edges
+	sheaf.AddCell([]int{0})
+	sheaf.AddCell([]int{1})
+	sheaf.AddCell([]int{2})
+	sheaf.AddCell([]int{0, 1}) // edge 0
+	sheaf.AddCell([]int{0, 2}) // edge 1
+	sheaf.AddCell([]int{1, 2}) // edge 2
+	sheaf.AddCell([]int{0, 1, 2}) // face
+	sheaf.CompileOperators()
+
+	// Circular flow on edges: 1 -> 2 -> 0
+	flow := StalkVector{1.0, -1.0, 1.0}
+	decomp := sheaf.DecomposeFlow1(flow, 100, 0.05)
+
+	if decomp.TotalEnergy <= 0 {
+		t.Fatalf("Invalid total energy: %f", decomp.TotalEnergy)
+	}
+	if len(decomp.Gradient) != 3 || len(decomp.Solenoidal) != 3 || len(decomp.Harmonic) != 3 {
+		t.Fatalf("Decomposition dimension mismatch: %+v", decomp)
+	}
+}
+
+func TestSimplicialRAGDiffusion(t *testing.T) {
+	sheaf := NewSimplicialSheaf(2, 1)
+
+	// Path 0 - 1 - 2 - 3
+	for i := 0; i < 4; i++ {
+		sheaf.AddCell([]int{i})
+	}
+	sheaf.AddCell([]int{0, 1})
+	sheaf.AddCell([]int{1, 2})
+	sheaf.AddCell([]int{2, 3})
+	sheaf.CompileOperators()
+
+	// Query starts at node 0
+	rankings := sheaf.SimplicialRAGDiffusion([]int{0}, 3, 0.1)
+	if len(rankings) != 4 {
+		t.Fatalf("Expected 4 node rankings, got %d", len(rankings))
+	}
+	// Node 0 should have highest activation, decreasing along path
+	if rankings["0"] <= rankings["3"] {
+		t.Fatalf("Expected diffusion decay from node 0 to 3: %+v", rankings)
 	}
 }

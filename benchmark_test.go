@@ -283,3 +283,45 @@ func BenchmarkParallelSheafHodgeDiffusion(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkHodgeDecomposition(b *testing.B) {
+	sheaf := NewSimplicialSheaf(2, 1)
+	for i := 0; i < 10; i++ {
+		sheaf.AddCell([]int{i})
+	}
+	for i := 0; i < 9; i++ {
+		sheaf.AddCell([]int{i, i + 1})
+	}
+	sheaf.AddCell([]int{9, 0})
+	sheaf.CompileOperators()
+
+	flow := make(StalkVector, 10)
+	for i := range flow {
+		flow[i] = float64(i%3 - 1)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = sheaf.DecomposeFlow1(flow, 20, 0.05)
+	}
+}
+
+func BenchmarkSimplicialRAGDiffusion(b *testing.B) {
+	sheaf := NewSimplicialSheaf(2, 1)
+	for i := 0; i < 32; i++ {
+		sheaf.AddCell([]int{i})
+	}
+	for i := 0; i < 31; i++ {
+		sheaf.AddCell([]int{i, i + 1})
+	}
+	sheaf.AddCell([]int{31, 0})
+	sheaf.CompileOperators()
+
+	seeds := []int{0, 5, 12}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = sheaf.SimplicialRAGDiffusion(seeds, 3, 0.1)
+	}
+}
+

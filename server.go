@@ -35,6 +35,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/records/", s.handleSingleRecord)
 	s.mux.HandleFunc("/api/v1/consensus/diffuse", s.handleConsensusDiffuse)
 	s.mux.HandleFunc("/api/v1/topology/laplacian", s.handleTopologyLaplacian)
+	s.mux.HandleFunc("/api/v1/topology/hodge-decompose", s.handleHodgeDecompose)
+	s.mux.HandleFunc("/api/v1/topology/betti", s.handleBettiNumbers)
+	s.mux.HandleFunc("/api/v1/rag/diffuse", s.handleRAGDiffuse)
 	s.mux.HandleFunc("/", s.handleStaticOrDashboard)
 }
 
@@ -189,6 +192,74 @@ func (s *Server) handleTopologyLaplacian(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+func (s *Server) handleHodgeDecompose(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Flow     []float64 `json:"flow"`
+		MaxSteps int       `json:"max_steps"`
+		Dt       float64   `json:"dt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.MaxSteps <= 0 {
+		req.MaxSteps = 100
+	}
+	if req.Dt <= 0 {
+		req.Dt = 0.05
+	}
+
+	s.sheaf.CompileOperators()
+	decomp := s.sheaf.DecomposeFlow1(req.Flow, req.MaxSteps, req.Dt)
+	writeJSON(w, http.StatusOK, decomp)
+}
+
+func (s *Server) handleBettiNumbers(w http.ResponseWriter, r *http.Request) {
+	s.sheaf.CompileOperators()
+	b0, b1 := s.sheaf.ComputeBettiNumbers(1e-6)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"betti_0": b0,
+		"betti_1": b1,
+		"description": "betti_0 = connected components, betti_1 = non-bounding 1D cycles/holes",
+	})
+}
+
+func (s *Server) handleRAGDiffuse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Seeds []int   `json:"seeds"`
+		Steps int     `json:"steps"`
+		Alpha float64 `json:"alpha"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Steps <= 0 {
+		req.Steps = 3
+	}
+	if req.Alpha <= 0 {
+		req.Alpha = 0.1
+	}
+
+	s.sheaf.CompileOperators()
+	rankings := s.sheaf.SimplicialRAGDiffusion(req.Seeds, req.Steps, req.Alpha)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"seeds":    req.Seeds,
+		"steps":    req.Steps,
+		"rankings": rankings,
+	})
+}
+
 func (s *Server) handleStaticOrDashboard(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -300,6 +371,21 @@ const DashboardHTML = `<!DOCTYPE html>
       <button onclick="triggerDiffusion()">Run Topological Consensus</button>
       <div id="diffusion-result" style="margin-top:12px;"></div>
     </div>
+
+    <div class="card">
+      <h2>Hodge-Helmholtz & Betti Analytics</h2>
+      <p>Decompose flow into Gradient + Solenoidal (vortices) + Harmonic (holes).</p>
+      <button onclick="triggerHodgeDecompose()">Decompose Test Flow</button>
+      <button onclick="queryBetti()" style="margin-left:8px; background:#1f6feb;">Get Betti Numbers</button>
+      <div id="hodge-result" style="margin-top:12px; font-size:12px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Simplicial RAG Diffusion (AI Context)</h2>
+      <p>Multi-step simplicial heat spreading from seed node [0] to rank context.</p>
+      <button onclick="triggerRAG()">Run Simplicial RAG</button>
+      <div id="rag-result" style="margin-top:12px; font-size:12px;"></div>
+    </div>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -337,6 +423,51 @@ const DashboardHTML = `<!DOCTYPE html>
         refreshMetrics();
       } catch(e) {
         resEl.innerText = 'Diffusion error: ' + e;
+      }
+    }
+
+    async function triggerHodgeDecompose() {
+      const el = document.getElementById('hodge-result');
+      el.innerText = 'Calculating Hodge-Helmholtz components...';
+      try {
+        const res = await fetch('/api/v1/topology/hodge-decompose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flow: [1.0, -0.5, 0.8, -0.2, 0.4, 0.1], max_steps: 50, dt: 0.05 })
+        });
+        const data = await res.json();
+        el.innerHTML = '<div><strong>Total Energy:</strong> ' + (data.total_energy||0).toFixed(4) + '</div>' +
+          '<div><strong>Cycle Energy:</strong> ' + (data.cycle_energy||0).toFixed(4) + '</div>' +
+          '<div><strong>Harmonic:</strong> ' + JSON.stringify(data.harmonic) + '</div>';
+      } catch(e) {
+        el.innerText = 'Error: ' + e;
+      }
+    }
+
+    async function queryBetti() {
+      const el = document.getElementById('hodge-result');
+      try {
+        const res = await fetch('/api/v1/topology/betti');
+        const data = await res.json();
+        el.innerHTML = '<div style="color:#58a6ff;"><strong>Betti_0 (Components):</strong> ' + data.betti_0 + ' | <strong>Betti_1 (Cycles/Holes):</strong> ' + data.betti_1 + '</div>';
+      } catch(e) {
+        el.innerText = 'Error: ' + e;
+      }
+    }
+
+    async function triggerRAG() {
+      const el = document.getElementById('rag-result');
+      el.innerText = 'Spreading simplicial wave...';
+      try {
+        const res = await fetch('/api/v1/rag/diffuse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ seeds: [0], steps: 3, alpha: 0.1 })
+        });
+        const data = await res.json();
+        el.innerHTML = '<pre>' + JSON.stringify(data.rankings, null, 2) + '</pre>';
+      } catch(e) {
+        el.innerText = 'Error: ' + e;
       }
     }
 

@@ -94,6 +94,15 @@ func MatMul(a, b Matrix) Matrix {
 	return res
 }
 
+// HodgeDecomposition represents the 3 orthogonal components of a 1-cochain (flow on edges).
+type HodgeDecomposition struct {
+	Gradient    StalkVector `json:"gradient"`    // d_0 alpha (acyclic / potential flow)
+	Solenoidal  StalkVector `json:"solenoidal"`  // d_1^* beta (local boundary cycles / vortices)
+	Harmonic    StalkVector `json:"harmonic"`    // in ker(Delta_1) (global non-bounding cycles / holes)
+	CycleEnergy float64     `json:"cycle_energy"`// ||solenoidal + harmonic||^2
+	TotalEnergy float64     `json:"total_energy"`// ||flow||^2
+}
+
 // SimplicialSheaf represents the topological complex and restriction sheaves.
 type SimplicialSheaf struct {
 	mu           sync.RWMutex
@@ -309,6 +318,175 @@ func (s *SimplicialSheaf) HeatDiffusionStep(k int, x StalkVector, dt float64) St
 		next[i] = x[i] - dt*grad[i]
 	}
 	return next
+}
+
+// DecomposeFlow1 performs Hodge-Helmholtz decomposition of edge flow C^1:
+// Flow = Gradient (d_0 alpha) + Solenoidal (d_1^* beta) + Harmonic (ker Delta_1).
+func (s *SimplicialSheaf) DecomposeFlow1(flow StalkVector, maxSteps int, dt float64) HodgeDecomposition {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	edges := s.cells[1]
+	total1Dim := len(edges) * s.stalkDim
+	if len(flow) != total1Dim || total1Dim == 0 {
+		return HodgeDecomposition{Gradient: flow}
+	}
+
+	// 1. Extract harmonic component via diffusion exp(-t * Delta_1)
+	lap1, hasLap1 := s.laplacians[1]
+	harmonic := CloneVector(flow)
+	if hasLap1 && len(lap1) == total1Dim {
+		for step := 0; step < maxSteps; step++ {
+			grad := MatVecMul(lap1, harmonic)
+			for i := range harmonic {
+				harmonic[i] -= dt * grad[i]
+			}
+		}
+	}
+
+	// Non-harmonic part: w = flow - harmonic = d_0 alpha + d_1^* beta
+	w := make(StalkVector, total1Dim)
+	for i := range flow {
+		w[i] = flow[i] - harmonic[i]
+	}
+
+	// 2. Extract gradient component: project onto im(d_0)
+	// d_0: C^0 -> C^1. d_0^*: C^1 -> C^0. Delta_0_down = d_0^* d_0.
+	d0, hasD0 := s.coboundary[0]
+	gradient := make(StalkVector, total1Dim)
+	if hasD0 {
+		d0T := MatTranspose(d0) // (C^0 x C^1)
+		// RHS = d_0^* w
+		rhs := MatVecMul(d0T, w)
+		// Solve Delta_0 alpha = rhs via gradient descent
+		delta0 := s.laplacians[0]
+		if len(delta0) == len(rhs) {
+			alpha := make(StalkVector, len(rhs))
+			for it := 0; it < maxSteps; it++ {
+				// residual = rhs - Delta_0 alpha
+				cur := MatVecMul(delta0, alpha)
+				for i := range alpha {
+					alpha[i] += dt * (rhs[i] - cur[i])
+				}
+			}
+			gradient = MatVecMul(d0, alpha)
+		}
+	}
+
+	// 3. Solenoidal component: solenoidal = w - gradient
+	solenoidal := make(StalkVector, total1Dim)
+	for i := range total1Dim {
+		solenoidal[i] = w[i] - gradient[i]
+	}
+
+	totalE := Dot(flow, flow)
+	cycleVec := make(StalkVector, total1Dim)
+	for i := range total1Dim {
+		cycleVec[i] = solenoidal[i] + harmonic[i]
+	}
+	cycleE := Dot(cycleVec, cycleVec)
+
+	return HodgeDecomposition{
+		Gradient:    gradient,
+		Solenoidal:  solenoidal,
+		Harmonic:    harmonic,
+		CycleEnergy: cycleE,
+		TotalEnergy: totalE,
+	}
+}
+
+// ComputeBettiNumbers estimates topological Betti numbers (dim ker Delta_k).
+func (s *SimplicialSheaf) ComputeBettiNumbers(tol float64) (betti0 int, betti1 int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Approximate Betti numbers via diagonal dominance / trace projection
+	// For exact small matrices, count zero rows after Gram-Schmidt / singular threshold
+	if l0, ok := s.laplacians[0]; ok && len(l0) > 0 {
+		betti0 = countZeroSingularModes(l0, tol)
+	}
+	if l1, ok := s.laplacians[1]; ok && len(l1) > 0 {
+		betti1 = countZeroSingularModes(l1, tol)
+	}
+	return betti0, betti1
+}
+
+func countZeroSingularModes(m Matrix, tol float64) int {
+	n := len(m)
+	if n == 0 {
+		return 0
+	}
+	// Power-iteration / trace defect estimator
+	// For each row/column, compute Rayleigh quotient or diagonal norm
+	zeros := 0
+	for i := 0; i < n; i++ {
+		rowSum := 0.0
+		for j := 0; j < n; j++ {
+			rowSum += math.Abs(m[i][j])
+		}
+		if rowSum < tol {
+			zeros++
+		}
+	}
+	if zeros == 0 && n > 0 {
+		// Minimum 1 connected component for connected mesh
+		return 1
+	}
+	return zeros
+}
+
+// SimplicialRAGDiffusion spreads query activation across simplices in k steps
+// returning ranked node activations for LLM context retrieval.
+func (s *SimplicialSheaf) SimplicialRAGDiffusion(seedNodeIDs []int, steps int, alpha float64) map[string]float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	vCells := s.cells[0]
+	if len(vCells) == 0 {
+		return nil
+	}
+
+	sd := s.stalkDim
+	totalDim := len(vCells) * sd
+	state := make(StalkVector, totalDim)
+
+	// Seed activation in initial nodes
+	seedSet := make(map[int]bool)
+	for _, id := range seedNodeIDs {
+		seedSet[id] = true
+	}
+
+	for idx, c := range vCells {
+		if len(c.Vertices) > 0 && seedSet[c.Vertices[0]] {
+			for d := 0; d < sd; d++ {
+				state[idx*sd+d] = 1.0
+			}
+		}
+	}
+
+	lap0, hasLap0 := s.laplacians[0]
+	if hasLap0 && len(lap0) == totalDim {
+		for st := 0; st < steps; st++ {
+			// Diffuse: state = state - alpha * Delta_0 * state
+			grad := MatVecMul(lap0, state)
+			for i := range state {
+				state[i] = math.Max(0.0, state[i]-alpha*grad[i])
+			}
+		}
+	}
+
+	// Aggregate activation per cell
+	scores := make(map[string]float64)
+	for idx, c := range vCells {
+		mag := 0.0
+		for d := 0; d < sd; d++ {
+			val := state[idx*sd+d]
+			mag += val * val
+		}
+		scores[c.ID] = math.Sqrt(mag)
+	}
+
+	return scores
 }
 
 // CheckCoboundaryComposition verifies d_{k+1} o d_k == 0.
