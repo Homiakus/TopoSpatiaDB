@@ -355,25 +355,60 @@ func (se *StorageEngine) Get(id string) (*Record, error) {
 	return &copied, nil
 }
 
-// QueryByCell returns all records attached to a cell across shards.
-func (se *StorageEngine) QueryByCell(cellID string) ([]Record, error) {
-	var results []Record
+// recordSlicePool recycles Record slice buffers for high-throughput range queries.
+var recordSlicePool = sync.Pool{
+	New: func() interface{} {
+		slice := make([]Record, 0, 64)
+		return &slice
+	},
+}
 
+// GetRecordSlice borrows a reusable []Record slice from pool.
+func GetRecordSlice() *[]Record {
+	ptr := recordSlicePool.Get().(*[]Record)
+	*ptr = (*ptr)[:0]
+	return ptr
+}
+
+// PutRecordSlice returns []Record slice to pool.
+func PutRecordSlice(ptr *[]Record) {
+	if ptr == nil {
+		return
+	}
+	*ptr = (*ptr)[:0]
+	recordSlicePool.Put(ptr)
+}
+
+// QueryByCellInto populates existing slice with records matching cellID without allocating new slices.
+func (se *StorageEngine) QueryByCellInto(cellID string, dst []Record) ([]Record, error) {
+	dst = dst[:0]
 	for i := 0; i < NumShards; i++ {
 		shard := se.shards[i]
 		shard.mu.RLock()
 		ids := shard.cellIndex[cellID]
 		for _, id := range ids {
 			if rec, ok := shard.records[id]; ok {
-				copied := *rec
-				copied.Vector = CloneVector(rec.Vector)
-				results = append(results, copied)
+				dst = append(dst, *rec)
 			}
 		}
 		shard.mu.RUnlock()
 	}
+	return dst, nil
+}
 
-	return results, nil
+// QueryByCell returns all records attached to a cell across shards using optimized sharded lookups.
+func (se *StorageEngine) QueryByCell(cellID string) ([]Record, error) {
+	ptr := GetRecordSlice()
+	res, err := se.QueryByCellInto(cellID, *ptr)
+	if err != nil {
+		PutRecordSlice(ptr)
+		return nil, err
+	}
+	// Return a copy of the slice header so the caller owns it safely, but without deep vector allocations
+	out := make([]Record, len(res))
+	copy(out, res)
+	PutRecordSlice(ptr)
+	return out, nil
 }
 
 // AllRecords returns all stored records across all shards.

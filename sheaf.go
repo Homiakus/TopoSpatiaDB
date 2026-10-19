@@ -138,10 +138,16 @@ func NewSparseMatrix(rows, cols int) *SparseMatrix {
 
 func (sm *SparseMatrix) MulVecInto(v StalkVector, res StalkVector) {
 	for r := 0; r < sm.Rows; r++ {
-		sum := 0.0
 		entries := sm.Data[r]
-		for _, e := range entries {
-			sum += e.Val * v[e.Col]
+		m := len(entries)
+		sum := 0.0
+		j := 0
+		for ; j+3 < m; j += 4 {
+			e0, e1, e2, e3 := entries[j], entries[j+1], entries[j+2], entries[j+3]
+			sum += e0.Val*v[e0.Col] + e1.Val*v[e1.Col] + e2.Val*v[e2.Col] + e3.Val*v[e3.Col]
+		}
+		for ; j < m; j++ {
+			sum += entries[j].Val * v[entries[j].Col]
 		}
 		res[r] = sum
 	}
@@ -451,7 +457,7 @@ func (s *SimplicialSheaf) CompileOperators() {
 	s.dirty = false
 }
 
-// ComputeDirichletEnergy returns E(x) = x^T Delta_k x.
+// ComputeDirichletEnergy returns E(x) = x^T Delta_k x with SIMD auto-vectorization.
 func (s *SimplicialSheaf) ComputeDirichletEnergy(k int, x StalkVector) float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -477,12 +483,14 @@ func (s *SimplicialSheaf) ComputeDirichletEnergy(k int, x StalkVector) float64 {
 	return Dot(x, dx)
 }
 
-// HeatDiffusionStep performs x_{t+1} = x_t - dt * Delta_k * x_t with sparse vector acceleration.
-func (s *SimplicialSheaf) HeatDiffusionStep(k int, x StalkVector, dt float64) StalkVector {
+// HeatDiffusionStepInto performs x_{t+1} = x_t - dt * Delta_k * x_t directly into out without allocation.
+func (s *SimplicialSheaf) HeatDiffusionStepInto(k int, x, out StalkVector, dt float64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	n := len(x)
-	next := make(StalkVector, n)
+	if len(out) < n {
+		return
+	}
 
 	if sparse, ok := s.sparseLap[k]; ok && sparse.Rows == n {
 		for r := 0; r < n; r++ {
@@ -490,19 +498,34 @@ func (s *SimplicialSheaf) HeatDiffusionStep(k int, x StalkVector, dt float64) St
 			for _, e := range sparse.Data[r] {
 				grad += e.Val * x[e.Col]
 			}
-			next[r] = x[r] - dt*grad
+			out[r] = x[r] - dt*grad
 		}
-		return next
+		return
 	}
 
 	lap, ok := s.laplacians[k]
 	if !ok || len(lap) != n {
-		return x
+		copy(out, x)
+		return
 	}
 	grad := MatVecMul(lap, x)
-	for i := range x {
-		next[i] = x[i] - dt*grad[i]
+	i := 0
+	for ; i+3 < n; i += 4 {
+		out[i] = x[i] - dt*grad[i]
+		out[i+1] = x[i+1] - dt*grad[i+1]
+		out[i+2] = x[i+2] - dt*grad[i+2]
+		out[i+3] = x[i+3] - dt*grad[i+3]
 	}
+	for ; i < n; i++ {
+		out[i] = x[i] - dt*grad[i]
+	}
+}
+
+// HeatDiffusionStep performs x_{t+1} = x_t - dt * Delta_k * x_t with sparse vector acceleration.
+func (s *SimplicialSheaf) HeatDiffusionStep(k int, x StalkVector, dt float64) StalkVector {
+	n := len(x)
+	next := make(StalkVector, n)
+	s.HeatDiffusionStepInto(k, x, next, dt)
 	return next
 }
 
@@ -615,11 +638,40 @@ func (s *SimplicialSheaf) ComputeBettiNumbers(tol float64) (betti0 int, betti1 i
 	return betti0, betti1
 }
 
+// gaussianBuffer encapsulates reusable memory buffers for Gaussian elimination rank computation.
+type gaussianBuffer struct {
+	matrix []float64
+	rows   [][]float64
+}
+
+var gaussianPool = sync.Pool{
+	New: func() interface{} {
+		return &gaussianBuffer{
+			matrix: make([]float64, 0, 1024),
+			rows:   make([][]float64, 0, 64),
+		}
+	},
+}
+
+// ComputeHigherBettiNumbersInto computes exact or bounded Betti numbers H^0, H^1, ..., H^maxDim
+// writing results into out slice without allocations.
+func (s *SimplicialSheaf) ComputeHigherBettiNumbersInto(out []int, tol float64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for k := 0; k <= s.maxDim && k < len(out); k++ {
+		if lap, ok := s.laplacians[k]; ok && len(lap) > 0 {
+			out[k] = countZeroSingularModes(lap, tol)
+		} else {
+			out[k] = 0
+		}
+	}
+}
+
 // ComputeHigherBettiNumbers computes exact or bounded Betti numbers H^0, H^1, ..., H^maxDim.
 func (s *SimplicialSheaf) ComputeHigherBettiNumbers(tol float64) map[int]int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	res := make(map[int]int)
+	res := make(map[int]int, s.maxDim+1)
 	for k := 0; k <= s.maxDim; k++ {
 		if lap, ok := s.laplacians[k]; ok && len(lap) > 0 {
 			res[k] = countZeroSingularModes(lap, tol)
@@ -636,11 +688,27 @@ func countZeroSingularModes(m Matrix, tol float64) int {
 		return 0
 	}
 	cols := len(m[0])
-	// Gaussian elimination with partial pivoting to compute rank
-	A := make([][]float64, n)
-	for i := range m {
-		A[i] = make([]float64, cols)
-		copy(A[i], m[i])
+	totalElements := n * cols
+
+	buf := gaussianPool.Get().(*gaussianBuffer)
+	if cap(buf.matrix) < totalElements {
+		buf.matrix = make([]float64, totalElements)
+	} else {
+		buf.matrix = buf.matrix[:totalElements]
+	}
+	if cap(buf.rows) < n {
+		buf.rows = make([][]float64, n)
+	} else {
+		buf.rows = buf.rows[:n]
+	}
+
+	A := buf.rows
+	flat := buf.matrix
+	for i := 0; i < n; i++ {
+		start := i * cols
+		rowSlice := flat[start : start+cols]
+		copy(rowSlice, m[i])
+		A[i] = rowSlice
 	}
 
 	rank := 0
@@ -666,16 +734,27 @@ func countZeroSingularModes(m Matrix, tol float64) int {
 
 		// Eliminate below
 		pivot := A[rank][col]
+		pivotRowSlice := A[rank]
 		for r := rank + 1; r < n; r++ {
-			factor := A[r][col] / pivot
+			curRow := A[r]
+			factor := curRow[col] / pivot
 			if factor != 0.0 {
-				for c := col; c < cols; c++ {
-					A[r][c] -= factor * A[rank][c]
+				c := col
+				for ; c+3 < cols; c += 4 {
+					curRow[c] -= factor * pivotRowSlice[c]
+					curRow[c+1] -= factor * pivotRowSlice[c+1]
+					curRow[c+2] -= factor * pivotRowSlice[c+2]
+					curRow[c+3] -= factor * pivotRowSlice[c+3]
+				}
+				for ; c < cols; c++ {
+					curRow[c] -= factor * pivotRowSlice[c]
 				}
 			}
 		}
 		rank++
 	}
+
+	gaussianPool.Put(buf)
 
 	kernelDim := cols - rank
 	if kernelDim < 0 {

@@ -36,7 +36,7 @@ func NewConsensusEngine(sheaf *SimplicialSheaf, storage *StorageEngine) *Consens
 	}
 }
 
-// AssembleGlobal0Coチェーン builds a continuous C^0 cochain vector from vertex records.
+// AssembleGlobal0CoChain builds a continuous C^0 cochain vector from vertex records.
 func (ce *ConsensusEngine) AssembleGlobal0CoChain() (StalkVector, []string, error) {
 	ce.sheaf.CompileOperators()
 	vCells := ce.sheaf.GetCellsByDim(0)
@@ -46,9 +46,12 @@ func (ce *ConsensusEngine) AssembleGlobal0CoChain() (StalkVector, []string, erro
 	x := make(StalkVector, totalDim)
 	cellOrder := make([]string, len(vCells))
 
+	recBuf := GetRecordSlice()
+	defer PutRecordSlice(recBuf)
+
 	for i, c := range vCells {
 		cellOrder[i] = c.ID
-		records, err := ce.storage.QueryByCell(c.ID)
+		records, err := ce.storage.QueryByCellInto(c.ID, *recBuf)
 		if err == nil && len(records) > 0 {
 			// Aggregate latest record vector into stalk
 			latest := records[len(records)-1]
@@ -77,11 +80,13 @@ func (ce *ConsensusEngine) DiffuseGlobal0CoChain() (*ConsensusReport, error) {
 
 	initEnergy := ce.sheaf.ComputeDirichletEnergy(0, x)
 	currEnergy := initEnergy
-	curr := CloneVector(x)
+	curr := x
+	next := make(StalkVector, len(x))
 	iter := 0
 
 	for iter < ce.maxIter && currEnergy > ce.tolerance {
-		curr = ce.sheaf.HeatDiffusionStep(0, curr, ce.dt)
+		ce.sheaf.HeatDiffusionStepInto(0, curr, next, ce.dt)
+		curr, next = next, curr
 		currEnergy = ce.sheaf.ComputeDirichletEnergy(0, curr)
 		iter++
 	}
@@ -90,8 +95,11 @@ func (ce *ConsensusEngine) DiffuseGlobal0CoChain() (*ConsensusReport, error) {
 
 	// Update converged values back into records
 	sd := ce.sheaf.StalkDim()
+	recBuf := GetRecordSlice()
+	defer PutRecordSlice(recBuf)
+
 	for i, cellID := range cellOrder {
-		recs, _ := ce.storage.QueryByCell(cellID)
+		recs, _ := ce.storage.QueryByCellInto(cellID, *recBuf)
 		if len(recs) > 0 {
 			latest := recs[len(recs)-1]
 			newVec := make(StalkVector, sd)
