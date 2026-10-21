@@ -68,7 +68,19 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/v1/topology/hodge-decompose", s.handleHodgeDecompose)
 	s.mux.HandleFunc("/api/v1/topology/betti", s.handleBettiNumbers)
 	s.mux.HandleFunc("/api/v1/rag/diffuse", s.handleRAGDiffuse)
+	s.mux.HandleFunc("/api/v1/openapi.json", s.handleOpenAPISpec)
+	s.mux.HandleFunc("/docs", s.handleSwaggerUI)
 	s.mux.HandleFunc("/", s.handleStaticOrDashboard)
+}
+
+func (s *Server) handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(openAPISpecJSON))
+}
+
+func (s *Server) handleSwaggerUI(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(swaggerUIHTML))
 }
 
 func (s *Server) checkAuth(r *http.Request) bool {
@@ -471,6 +483,7 @@ const DashboardHTML = `<!DOCTYPE html>
   <div class="header">
     <h1>TopoSpatiaDB <span class="badge">Holographic Consensus</span></h1>
     <div>
+      <a href="/docs" target="_blank" style="color:var(--accent);text-decoration:none;margin-right:12px;">Swagger Docs</a>
       <a href="/api/v1/status" target="_blank" style="color:var(--accent);text-decoration:none;">API Status</a>
     </div>
   </div>
@@ -577,3 +590,261 @@ const DashboardHTML = `<!DOCTYPE html>
   </script>
 </body>
 </html>`
+
+const swaggerUIHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TopoSpatiaDB OpenAPI Documentation</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #0d1117; }
+    .swagger-ui .topbar { display: none; }
+    .swagger-ui { filter: invert(88%) hue-rotate(180deg); }
+    .swagger-ui .highlight-code { filter: invert(100%) hue-rotate(180deg); }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = () => {
+      SwaggerUIBundle({
+        url: '/api/v1/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIBundle.SwaggerUIStandalonePreset
+        ],
+        layout: "BaseLayout"
+      });
+    };
+  </script>
+</body>
+</html>`
+
+const openAPISpecJSON = `{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TopoSpatiaDB API",
+    "description": "High-Performance Multidimensional Sheaf Holographic Database REST API. Implements Hodge Laplacian consensus diffusion, Simplicial RAG heat waves, and simplicial complex management.",
+    "version": "1.2.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current TopoSpatiaDB instance"
+    }
+  ],
+  "paths": {
+    "/api/v1/status": {
+      "get": {
+        "summary": "Retrieve database status and topological dimension counts",
+        "responses": {
+          "200": {
+            "description": "Engine health and simplex statistics"
+          }
+        }
+      }
+    },
+    "/api/v1/simplex": {
+      "get": {
+        "summary": "List all simplices across all dimensions",
+        "responses": {
+          "200": { "description": "Array of Simplex cells" }
+        }
+      },
+      "post": {
+        "summary": "Add a new simplicial cell (e.g., triangle or edge)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vertices": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "example": [0, 1, 2]
+                  }
+                },
+                "required": ["vertices"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Simplicial cell added and compiled" }
+        }
+      }
+    },
+    "/api/v1/records": {
+      "get": {
+        "summary": "List stored documents or filter by cell_id",
+        "parameters": [
+          {
+            "name": "cell_id",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter records by simplicial cell ID"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Array of records" }
+        }
+      },
+      "post": {
+        "summary": "Store a document attached to a simplicial cell stalk",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "example": "rec-alpha" },
+                  "cell_id": { "type": "string", "example": "0" },
+                  "dimension": { "type": "integer", "example": 0 },
+                  "vector": {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "example": [10.0, 5.0]
+                  },
+                  "payload": {
+                    "type": "object",
+                    "example": { "entity": "Alpha Node", "status": "active" }
+                  }
+                },
+                "required": ["id", "cell_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Record stored" }
+        }
+      }
+    },
+    "/api/v1/records/{id}": {
+      "get": {
+        "summary": "Get document by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Document details" },
+          "404": { "description": "Record not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete document by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Record deleted" }
+        }
+      }
+    },
+    "/api/v1/consensus/diffuse": {
+      "post": {
+        "summary": "Execute discrete Hodge Laplacian heat diffusion consensus",
+        "description": "Projects conflict gradients into the harmonic subspace ker(Delta_0), driving Dirichlet energy to zero.",
+        "responses": {
+          "200": { "description": "Diffusion convergence report" }
+        }
+      }
+    },
+    "/api/v1/topology/laplacian": {
+      "get": {
+        "summary": "Retrieve dense k-Laplacian matrix",
+        "parameters": [
+          {
+            "name": "dim",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Simplicial dimension k (0=vertex Laplacian, 1=Hodge 1-Laplacian)"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Dense Laplacian matrix" }
+        }
+      }
+    },
+    "/api/v1/topology/hodge-decompose": {
+      "post": {
+        "summary": "Compute 3-way Hodge-Helmholtz decomposition of edge flow",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "flow": {
+                    "type": "array",
+                    "items": { "type": "number" }
+                  },
+                  "max_steps": { "type": "integer", "default": 50 },
+                  "dt": { "type": "number", "default": 0.05 }
+                },
+                "required": ["flow"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Gradient, solenoidal (curl), and harmonic components" }
+        }
+      }
+    },
+    "/api/v1/topology/betti": {
+      "get": {
+        "summary": "Compute Betti numbers (connected components, 1D/2D holes)",
+        "responses": {
+          "200": { "description": "Topological Betti numbers" }
+        }
+      }
+    },
+    "/api/v1/rag/diffuse": {
+      "post": {
+        "summary": "Simplicial RAG topological relevance propagation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seeds": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "example": [0]
+                  },
+                  "steps": { "type": "integer", "default": 3 },
+                  "alpha": { "type": "number", "default": 0.1 }
+                },
+                "required": ["seeds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Ranked cell relevance scores" }
+        }
+      }
+    }
+  }
+}`

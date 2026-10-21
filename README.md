@@ -213,12 +213,44 @@ go test -bench=. -benchmem
 # Компиляция демона СУБД
 go build -o topospatiad ./cmd/topospatiad
 
-# Запуск сервера
-./topospatiad
+# Запуск сервера с кастомными флагами
+./topospatiad server -port 8089 -data-dir ~/.topospatia_data
+
+# Интерактивная консоль REPL (TopoSpatia Shell)
+./topospatiad shell -url http://localhost:8089
+
+# Просмотр метрик и чисел Бетти через CLI
+./topospatiad status
+./topospatiad betti
 ```
 
-Сервер запускается на порту `:8089` с сохранением состояния в каталог `~/.topospatia_data`.
-Интерактивный дашборд доступен в браузере по адресу: **`http://localhost:8089`**.
+Сервер запускается на порту `:8089` с сохранением состояния в каталог `~/.topospatia_data`.  
+* **Интерактивный дашборд:** `http://localhost:8089`  
+* **Интерактивная Swagger/OpenAPI документация:** `http://localhost:8089/docs` (спецификация: `/api/v1/openapi.json`)  
+* **Интерактивный REPL:** `./topospatiad shell`
+
+---
+
+## 💻 CLI & Интерактивный REPL
+
+TopoSpatiaDB поставляется с эргономичным CLI-инструментом (`topospatiad`), поддерживающим работу в стиле DuckDB/SQLite:
+
+```bash
+# Справка по всем командам и параметрам
+./topospatiad --help
+
+# Запуск интерактивной консоли
+./topospatiad shell
+
+# Внутри шелла доступны команды:
+topospatia> help
+topospatia> status
+topospatia> betti
+topospatia> records
+topospatia> add-cell 0 1 2
+topospatia> diffuse
+topospatia> rag 0 3 0.1
+```
 
 ---
 
