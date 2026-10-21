@@ -1,0 +1,24 @@
+# Binaries and build artifacts
+topospatiad
+*.so
+*.o
+*.a
+
+# Test & run directories
+.topospatia_data/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Rust
+target/
+
+# UI & Framebuffer temporary captures
+web/*_framebuffer.bmp
+web/*.bmp
